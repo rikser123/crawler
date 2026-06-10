@@ -1,0 +1,63 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  config:
+    import: classpath:logbook.yml
+  application:
+    name: rikser-crawler
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://${POSTGRES_URL}/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    hikari:
+      schema: rikser-crawler
+      connection-init-sql: CREATE SCHEMA IF NOT EXISTS "rikser-crawler"
+      maximum-pool-size: 5
+      connection-timeout: 5000
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  liquibase:
+    change-log: classpath:/db/changelog/changelog-master.xml
+    default-schema: rikser-crawler
+    liquibase-schema: rikser-crawler
+  cloud:
+    compatibility-verifier:
+      enabled: false
+  kafka:
+    consumer:
+      group-id: crawler
+
+server:
+  port: 8081
+
+bundle:
+  security:
+    enabled: true
+    service:
+      enabled: true
+      url: ${SECURITY_URL}
+  kafka:
+    enabled: true
+    user: ${KAFKA_USER}
+    password: ${KAFKA_PASSWORD}
+    kafkaUrl: ${KAFKA_URL}
+
+management:
+  tracing:
+    enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+    health:
+      show-details: always
+      status:
+        http-mapping:
+          down: 503
+
+logbook:
+  predicate:
+    exclude:
+      - path: /api/v1/user/public-key
+      - path: /actuator/**

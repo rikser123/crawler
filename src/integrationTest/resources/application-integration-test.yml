@@ -1,0 +1,48 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  application:
+    name: rikser-yandex-fetcher
+  liquibase:
+    change-log: classpath:/db/changelog/changelog-master.xml
+    drop-first: true
+  cloud:
+    compatibility-verifier:
+      enabled: false
+  datasource:
+    hikari:
+      schema: public
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+bundle:
+  security:
+    enabled: false
+    service:
+      enabled: false
+      url: http://localhost:8081
+  redis:
+    enabled: false
+  kafka:
+    kafkaUrl: http://localhost:8081
+    user: user
+    password: password
+
+logbook:
+  enabled: false
+
+yandex:
+  token: token
+  searchApiUrl: http://localhost:8081
+  operationApiUrl: http://localhost:8081
+  spellerApi: http://localhost:8081
+  maxAttempts: 4
+  delay: 500
+
+kafka:
+  max-fetch-limit: 200
+  scheduler-delay: PT02S
