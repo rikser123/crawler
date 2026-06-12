@@ -85,6 +85,7 @@ dependencyManagement {
 val mockitoAgent = configurations.create("mockitoAgent")
 
 dependencies {
+    implementation("com.github.crawler-commons:crawler-commons:1.6")
     compileOnly("org.projectlombok:lombok")
     developmentOnly("org.springframework.boot:spring-boot-devtools")
     runtimeOnly("org.postgresql:postgresql")
