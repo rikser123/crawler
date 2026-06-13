@@ -15,11 +15,14 @@ import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.DelayedProcessRequestDto;
 import rikser123.crawler.dto.KafkaMessageRequestResultDto;
 import rikser123.crawler.dto.ProcessedRequestDto;
+import rikser123.crawler.dto.RequestWithContent;
 import rikser123.crawler.exception.BigSizeContentException;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
@@ -57,7 +60,7 @@ public class Crawler {
       while (true) {
         try {
           var request = queue.take();
-          executors.execute(() -> downloadLinkContent(request, queueSemaphore));
+          executors.execute(() -> prepareRequestsWithContent(request, queueSemaphore));
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
         }
@@ -68,7 +71,7 @@ public class Crawler {
       while (true) {
         try {
           var request = delayQueue.take();
-          executors.execute(() -> downloadLinkContent(request,delayQueueSemaphore));
+          executors.execute(() -> prepareRequestsWithContent(request,delayQueueSemaphore));
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
         }
@@ -90,7 +93,7 @@ public class Crawler {
   }
 
 
-  private <T extends ProcessedRequestDto> void  downloadLinkContent(T requestDto, Semaphore semaphore) {
+  private <T extends ProcessedRequestDto> String  downloadLinkContent(T requestDto, Semaphore semaphore) {
     var link = requestDto.getRequest().getUrl();
 
     if (requestDto.getAttempt() >= fetchProperties.getMaxDownloadAttempt()) {
@@ -114,6 +117,7 @@ public class Crawler {
         crawlerResponseExtractor,
         String.class
       );
+      return response;
     } catch (BigSizeContentException e) {
       log.warn("Слишком большой размер скачиваемой страницы!", e);
       throw new IllegalStateException("Слишком большой размер скачиваемой страницы!");
@@ -124,6 +128,7 @@ public class Crawler {
       delayedProcess.setAttempt(requestDto.getAttempt() + 1);
       delayedProcess.setDelayInSeconds(fetchProperties.getRepeatDownloadDelay());
       delayQueue.add(delayedProcess);
+      return null;
     } finally {
       semaphore.release();
     }
@@ -179,5 +184,51 @@ public class Crawler {
       isInQueue,
       isInDelayQueue
     ).anyMatch(Boolean::booleanValue);
+  }
+
+  private List<ProcessedRequestDto> findWaitingRequests(String link) {
+    var processingRequests = new ArrayList<ProcessedRequestDto>();
+    sameAsProcessingRequestsByLink.entrySet().forEach(entry -> {
+      var value = entry.getValue();
+      var isSameLink = entry.getValue().getRequest().getUrl().equals(link);
+      if (isSameLink) {
+        processingRequests.add(value);
+      }
+    });
+
+    return processingRequests;
+  }
+
+  private <T extends ProcessedRequestDto> List<RequestWithContent> prepareRequestsWithContent(
+    T request,
+    Semaphore semaphore
+  ) {
+    var requests = new ArrayList<RequestWithContent>();
+    var waitingRequests = findWaitingRequests(request.getRequest().getUrl());
+    String content;
+
+    try {
+      content = downloadLinkContent(request, semaphore);
+    } catch (IllegalStateException ex) {
+      throw new IllegalStateException(ex.getMessage(), ex);
+    } finally {
+      waitingRequests.forEach(req -> {
+        sameAsProcessingRequestsByLink.remove(req.getRequest().getRequestResultId());
+      });
+    }
+
+    var requestWithContent = new RequestWithContent();
+    requestWithContent.setRequestResult(request.getRequest());
+    requestWithContent.setContent(content);
+    requests.add(requestWithContent);
+
+    var waitingRequestsContent = waitingRequests.stream().map(req -> {
+      var watingRequestWithContent = new RequestWithContent();
+      watingRequestWithContent.setContent(content);
+      watingRequestWithContent.setRequestResult(req.getRequest());
+      return watingRequestWithContent;
+    }).toList();
+    requests.addAll(waitingRequestsContent);
+    return requests;
   }
 }
