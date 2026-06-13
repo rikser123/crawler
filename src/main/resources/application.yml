@@ -61,3 +61,9 @@ logbook:
     exclude:
       - path: /api/v1/user/public-key
       - path: /actuator/**
+
+fetch:
+  queue-limit: ${QUEUE_LIMIT:50}
+  timeout-queue-limit: ${TIMEOUT_QUEUE_LIMIT:50}
+  max-download-attempt: ${MAX_DOWNLOAD_ATTEMPT:50}
+  repeat-download-delay: ${REPEAT_DOWNLOAD_ATTEMPT:50}

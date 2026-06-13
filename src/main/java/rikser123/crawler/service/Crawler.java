@@ -9,7 +9,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import rikser123.crawler.constants.AppConstants;
+import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.DelayedProcessRequestDto;
 import rikser123.crawler.dto.KafkaMessageRequestResultDto;
 import rikser123.crawler.dto.ProcessedRequestDto;
@@ -25,41 +25,35 @@ import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.stream.Stream;
 
 @RequiredArgsConstructor
 @Service
 @Slf4j
 public class Crawler {
-  private final static Map<String, SimpleRobotRules> domainRobotRules = new ConcurrentHashMap<>();
+  private static final Map<String, SimpleRobotRules> domainRobotRules = new ConcurrentHashMap<>();
   private static final RestTemplate restTemplate = new RestTemplate();
   private static final Executor executors = Executors.newVirtualThreadPerTaskExecutor();
 
-  private static BlockingQueue<ProcessedRequestDto> queue = new LinkedBlockingQueue<>();
-  private static DelayQueue<DelayedProcessRequestDto> delayQueue = new DelayQueue<>();
+  private static final BlockingQueue<ProcessedRequestDto> queue = new LinkedBlockingQueue<>();
+  private static final DelayQueue<DelayedProcessRequestDto> delayQueue = new DelayQueue<>();
+  private static final Map<UUID, ProcessedRequestDto> sameAsProcessingRequestsByLink = new ConcurrentHashMap<>();
+  private static Semaphore queueSemaphore;
+  private static Semaphore delayQueueSemaphore;
 
-  private static Map<UUID, ProcessedRequestDto> sameAsProccessingRequestsByLink = new ConcurrentHashMap<>();
-
-  public void initDownloading(KafkaMessageRequestResultDto resultDto) {
-    var requestDto = new ProcessedRequestDto();
-    requestDto.setAttempt(0);
-    requestDto.setRequest(resultDto);
-
-    var isInProcessing = isProcessingRequest(requestDto);
-    if (isInProcessing) {
-      sameAsProccessingRequestsByLink.put(resultDto.getRequestResultId(), requestDto);
-    } else {
-      queue.add(requestDto);
-    }
-  }
+  private final FetchConfigProperties fetchProperties;
 
   @PostConstruct
   void init() {
+    queueSemaphore = new Semaphore(fetchProperties.getQueueLimit());
+    delayQueueSemaphore = new Semaphore(fetchProperties.getTimeoutQueueLimit());
+
     executors.execute(() -> {
       while (true) {
         try {
-        var request = queue.take();
-        executors.execute(() -> downloadLinkContent(request));
+          var request = queue.take();
+          executors.execute(() -> downloadLinkContent(request, queueSemaphore));
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
         }
@@ -70,7 +64,7 @@ public class Crawler {
       while (true) {
         try {
           var request = delayQueue.take();
-          executors.execute(() -> downloadLinkContent(request));
+          executors.execute(() -> downloadLinkContent(request,delayQueueSemaphore));
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
         }
@@ -79,11 +73,24 @@ public class Crawler {
     // downloadLinkContent("https://repetitor.1c.ru/russian/sostavnoe-imennoe-skazuemoe/");
   }
 
+  public void initDownloading(KafkaMessageRequestResultDto resultDto) {
+    var requestDto = new ProcessedRequestDto();
+    requestDto.setAttempt(0);
+    requestDto.setRequest(resultDto);
 
-  private <T extends ProcessedRequestDto> void  downloadLinkContent(T requestDto) {
+    var isInProcessing = isProcessingRequest(requestDto);
+    if (isInProcessing) {
+      sameAsProcessingRequestsByLink.put(resultDto.getRequestResultId(), requestDto);
+    } else {
+      queue.add(requestDto);
+    }
+  }
+
+
+  private <T extends ProcessedRequestDto> void  downloadLinkContent(T requestDto, Semaphore semaphore) {
     var link = requestDto.getRequest().getUrl();
 
-    if (requestDto.getAttempt() >= AppConstants.MAX_DOWNLOAD_ATTEMPTS_COUNT) {
+    if (requestDto.getAttempt() >= fetchProperties.getMaxDownloadAttempt()) {
       log.warn("Превышен лимит попыток скачивания {}", link);
       throw new IllegalStateException("Превышен лимит попыток скачивания!");
     }
@@ -96,15 +103,18 @@ public class Crawler {
     }
 
     try {
+      semaphore.acquire();
       var response = restTemplate.getForEntity(link, String.class);
     } catch (Exception e) {
       log.warn("Проблемы со скачиванием по ссылке {}, перемещено в очередь для повторного запроса", link);
       var delayedProcess = new DelayedProcessRequestDto();
       delayedProcess.setRequest(requestDto.getRequest());
-      delayedProcess.setAttempt(delayedProcess.getAttempt() + 1);
+      delayedProcess.setAttempt(requestDto.getAttempt() + 1);
+      delayedProcess.setDelayInSeconds(fetchProperties.getRepeatDownloadDelay());
       delayQueue.add(delayedProcess);
+    } finally {
+      semaphore.release();
     }
-
   }
 
   private boolean isParsingAllowed(String link) {
