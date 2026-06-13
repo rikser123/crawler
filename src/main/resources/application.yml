@@ -67,3 +67,4 @@ fetch:
   timeout-queue-limit: ${TIMEOUT_QUEUE_LIMIT:50}
   max-download-attempt: ${MAX_DOWNLOAD_ATTEMPT:50}
   repeat-download-delay: ${REPEAT_DOWNLOAD_ATTEMPT:50}
+  max-body-size: ${MAX_BODY_SIZE:512 000}

@@ -16,4 +16,5 @@ public class FetchConfigProperties {
   private int timeoutQueueLimit;
   private int maxDownloadAttempt;
   private int repeatDownloadDelay;
+  private int maxBodySize;
 }

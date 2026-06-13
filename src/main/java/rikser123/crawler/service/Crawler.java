@@ -6,13 +6,16 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import rikser123.crawler.component.CrawlerResponseExtractor;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.DelayedProcessRequestDto;
 import rikser123.crawler.dto.KafkaMessageRequestResultDto;
 import rikser123.crawler.dto.ProcessedRequestDto;
+import rikser123.crawler.exception.BigSizeContentException;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -43,6 +46,7 @@ public class Crawler {
   private static Semaphore delayQueueSemaphore;
 
   private final FetchConfigProperties fetchProperties;
+  private final CrawlerResponseExtractor crawlerResponseExtractor;
 
   @PostConstruct
   void init() {
@@ -70,7 +74,6 @@ public class Crawler {
         }
       }
     });
-    // downloadLinkContent("https://repetitor.1c.ru/russian/sostavnoe-imennoe-skazuemoe/");
   }
 
   public void initDownloading(KafkaMessageRequestResultDto resultDto) {
@@ -104,7 +107,16 @@ public class Crawler {
 
     try {
       semaphore.acquire();
-      var response = restTemplate.getForEntity(link, String.class);
+      var response = restTemplate.execute(
+        link,
+        HttpMethod.GET,
+        null,
+        crawlerResponseExtractor,
+        String.class
+      );
+    } catch (BigSizeContentException e) {
+      log.warn("Слишком большой размер скачиваемой страницы!", e);
+      throw new IllegalStateException("Слишком большой размер скачиваемой страницы!");
     } catch (Exception e) {
       log.warn("Проблемы со скачиванием по ссылке {}, перемещено в очередь для повторного запроса", link);
       var delayedProcess = new DelayedProcessRequestDto();
