@@ -25,6 +25,7 @@ spring:
     compatibility-verifier:
       enabled: false
   kafka:
+    bootstrap-servers: ${KAFKA_URL}
     consumer:
       group-id: crawler
 
@@ -42,6 +43,7 @@ bundle:
     user: ${KAFKA_USER}
     password: ${KAFKA_PASSWORD}
     kafkaUrl: ${KAFKA_URL}
+    max-fetch-limit: 200
 
 management:
   tracing:
@@ -68,3 +70,6 @@ fetch:
   max-download-attempt: ${MAX_DOWNLOAD_ATTEMPT:50}
   repeat-download-delay: ${REPEAT_DOWNLOAD_ATTEMPT:50}
   max-body-size: ${MAX_BODY_SIZE:512 000}
+
+kafka:
+  scheduler-delay: PT10S

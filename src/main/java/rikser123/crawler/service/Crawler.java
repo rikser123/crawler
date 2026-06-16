@@ -50,6 +50,7 @@ public class Crawler {
 
   private final FetchConfigProperties fetchProperties;
   private final CrawlerResponseExtractor crawlerResponseExtractor;
+  private final RequestResultOutboxMessageService requestResultOutboxMessageService;
 
   @PostConstruct
   void init() {
@@ -58,9 +59,13 @@ public class Crawler {
 
     executors.execute(() -> {
       while (true) {
+        UUID requestResultId = null;
         try {
           var request = queue.take();
+          requestResultId = request.getRequest().getRequestResultId();
           executors.execute(() -> prepareRequestsWithContent(request, queueSemaphore));
+        } catch (IllegalStateException ex) {
+          saveErrorRequestOutboxMessage(requestResultId,ex.getMessage());
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
         }
@@ -69,10 +74,14 @@ public class Crawler {
 
     executors.execute(() -> {
       while (true) {
+        UUID requestResultId = null;
         try {
           var request = delayQueue.take();
-          executors.execute(() -> prepareRequestsWithContent(request,delayQueueSemaphore));
-        } catch (InterruptedException e) {
+          requestResultId = request.getRequest().getRequestResultId();
+          executors.execute(() -> prepareRequestsWithContent(request, delayQueueSemaphore));
+        } catch (IllegalStateException ex) {
+          saveErrorRequestOutboxMessage(requestResultId,ex.getMessage());
+        }catch (InterruptedException e) {
           Thread.currentThread().interrupt();
         }
       }
@@ -232,5 +241,12 @@ public class Crawler {
     }).toList();
     requests.addAll(waitingRequestsContent);
     return requests;
+  }
+
+  private void saveErrorRequestOutboxMessage(UUID requestResultId, String errorMessage) {
+    var requestOutboxMessage = requestResultOutboxMessageService.createOutboxRequestError(
+      requestResultId, errorMessage
+    );
+    requestResultOutboxMessageService.save(requestOutboxMessage);
   }
 }
