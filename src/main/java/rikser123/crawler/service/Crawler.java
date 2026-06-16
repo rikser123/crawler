@@ -113,7 +113,9 @@ public class Crawler {
       var response = restTemplate.execute(
         link,
         HttpMethod.GET,
-        null,
+        request -> {
+           request.getHeaders().add("User-Agent", "RikserBot/1.0");
+        },
         crawlerResponseExtractor,
         String.class
       );

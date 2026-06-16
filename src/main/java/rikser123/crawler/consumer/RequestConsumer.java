@@ -7,6 +7,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import rikser123.bundle.component.ConstraintValidator;
 import rikser123.crawler.dto.KafkaMessageRequestResultDto;
+import rikser123.crawler.service.Crawler;
 
 
 @Component
@@ -17,6 +18,7 @@ public class RequestConsumer {
 
   private final ObjectMapper objectMapper;
   private final ConstraintValidator validator;
+  private final Crawler crawler;
 
   @KafkaListener(topics = { REQUEST_TOPIC }, groupId = "crawler")
   public void requestListener(String message) {
@@ -24,7 +26,7 @@ public class RequestConsumer {
       var data = objectMapper.readValue(message, KafkaMessageRequestResultDto.class);
       validator.validate(data);
 
-      log.info("data {}", data);
+      crawler.initDownloading(data);
     } catch (Exception e) {
       log.warn("ex", e);
     }
