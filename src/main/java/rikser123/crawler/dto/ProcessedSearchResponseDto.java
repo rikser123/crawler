@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class ProcessedRequestDto {
-  private KafkaMessageRequestResultDto request;
+public class ProcessedSearchResponseDto {
+  private MessageSearchResponseDto searchResponse;
   private int attempt;
 }

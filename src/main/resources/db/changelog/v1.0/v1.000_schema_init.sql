@@ -1,4 +1,4 @@
-CREATE TABLE kafka_outbox_message (
+CREATE TABLE message_search_message (
    id UUID PRIMARY KEY,
    dto JSONB NOT NULL,
    status VARCHAR(50) NOT NULL,

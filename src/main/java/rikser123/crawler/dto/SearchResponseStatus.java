@@ -1,6 +1,6 @@
 package rikser123.crawler.dto;
 
-public enum KafkaMessageRequestStatus {
+public enum SearchResponseStatus {
   CREATED,
   IN_PROCESSING,
   PROCESSED,

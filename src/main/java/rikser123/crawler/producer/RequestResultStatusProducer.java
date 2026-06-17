@@ -8,13 +8,13 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 import rikser123.bundle.repository.entity.OutboxMessageStatus;
-import rikser123.crawler.repository.entity.RequestResultOutboxMessage;
-import rikser123.crawler.service.RequestResultOutboxMessageService;
+import rikser123.crawler.repository.entity.SearchResponseOutboxMessage;
+import rikser123.crawler.service.SearchResponseMessageService;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
-import static rikser123.crawler.config.KafkaTopicConfig.REQUEST_RESULT_TOPIC;
+import static rikser123.crawler.config.KafkaTopicConfig.QUERY_RESULT_TOPIC;
 
 @Component
 @RequiredArgsConstructor
@@ -22,17 +22,17 @@ import static rikser123.crawler.config.KafkaTopicConfig.REQUEST_RESULT_TOPIC;
 public class RequestResultStatusProducer {
   private final KafkaTemplate<String, String> kafkaTemplate;
   private final ObjectMapper objectMapper;
-  private final RequestResultOutboxMessageService requestResultOutboxMessageService;
+  private final SearchResponseMessageService searchResponseMessageService;
 
   @SneakyThrows
-  public CompletableFuture<SendResult<String, String>> send(RequestResultOutboxMessage kafkaRequestMessage) {
+  public CompletableFuture<SendResult<String, String>> send(SearchResponseOutboxMessage kafkaRequestMessage) {
     var dto = kafkaRequestMessage.getDto();
     var message = objectMapper.writeValueAsString(dto);
 
-    return kafkaTemplate.send(REQUEST_RESULT_TOPIC, message).whenComplete((result, error) -> {
+    return kafkaTemplate.send(QUERY_RESULT_TOPIC, message).whenComplete((result, error) -> {
       if (!Objects.isNull(result)) {
         log.info("message successfully send {}", kafkaRequestMessage.getId());
-        requestResultOutboxMessageService.changeStatus(kafkaRequestMessage, OutboxMessageStatus.SENT);
+        searchResponseMessageService.changeStatus(kafkaRequestMessage, OutboxMessageStatus.SENT);
       } else if (!Objects.isNull(error)) {
         log.warn("message fail send {}", kafkaRequestMessage.getId());
       }

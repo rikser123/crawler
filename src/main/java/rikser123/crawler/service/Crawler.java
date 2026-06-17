@@ -12,10 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import rikser123.crawler.component.CrawlerResponseExtractor;
 import rikser123.crawler.config.FetchConfigProperties;
-import rikser123.crawler.dto.DelayedProcessRequestDto;
-import rikser123.crawler.dto.KafkaMessageRequestResultDto;
-import rikser123.crawler.dto.ProcessedRequestDto;
-import rikser123.crawler.dto.RequestWithContent;
+import rikser123.crawler.dto.DelayedProcessedSearchResponseDto;
+import rikser123.crawler.dto.MessageSearchResponseDto;
+import rikser123.crawler.dto.ProcessedSearchResponseDto;
+import rikser123.crawler.dto.SearchResponseDtoWithContent;
 import rikser123.crawler.exception.BigSizeContentException;
 
 import java.net.URI;
@@ -42,15 +42,15 @@ public class Crawler {
   private static final RestTemplate restTemplate = new RestTemplate();
   private static final Executor executors = Executors.newVirtualThreadPerTaskExecutor();
 
-  private static final BlockingQueue<ProcessedRequestDto> queue = new LinkedBlockingQueue<>();
-  private static final DelayQueue<DelayedProcessRequestDto> delayQueue = new DelayQueue<>();
-  private static final Map<UUID, ProcessedRequestDto> sameAsProcessingRequestsByLink = new ConcurrentHashMap<>();
+  private static final BlockingQueue<ProcessedSearchResponseDto> queue = new LinkedBlockingQueue<>();
+  private static final DelayQueue<DelayedProcessedSearchResponseDto> delayQueue = new DelayQueue<>();
+  private static final Map<UUID, ProcessedSearchResponseDto> sameAsProcessingRequestsByLink = new ConcurrentHashMap<>();
   private static Semaphore queueSemaphore;
   private static Semaphore delayQueueSemaphore;
 
   private final FetchConfigProperties fetchProperties;
   private final CrawlerResponseExtractor crawlerResponseExtractor;
-  private final RequestResultOutboxMessageService requestResultOutboxMessageService;
+  private final SearchResponseMessageService searchResponseMessageService;
 
   @PostConstruct
   void init() {
@@ -62,7 +62,7 @@ public class Crawler {
         UUID requestResultId = null;
         try {
           var request = queue.take();
-          requestResultId = request.getRequest().getRequestResultId();
+          requestResultId = request.getSearchResponse().getSearchResponseId();
           executors.execute(() -> prepareRequestsWithContent(request, queueSemaphore));
         } catch (IllegalStateException ex) {
           saveErrorRequestOutboxMessage(requestResultId,ex.getMessage());
@@ -77,7 +77,7 @@ public class Crawler {
         UUID requestResultId = null;
         try {
           var request = delayQueue.take();
-          requestResultId = request.getRequest().getRequestResultId();
+          requestResultId = request.getSearchResponse().getSearchResponseId();
           executors.execute(() -> prepareRequestsWithContent(request, delayQueueSemaphore));
         } catch (IllegalStateException ex) {
           saveErrorRequestOutboxMessage(requestResultId,ex.getMessage());
@@ -88,29 +88,29 @@ public class Crawler {
     });
   }
 
-  public void initDownloading(KafkaMessageRequestResultDto resultDto) {
-    var requestDto = new ProcessedRequestDto();
+  public void initDownloading(MessageSearchResponseDto resultDto) {
+    var requestDto = new ProcessedSearchResponseDto();
     requestDto.setAttempt(0);
-    requestDto.setRequest(resultDto);
+    requestDto.setSearchResponse(resultDto);
 
     var isInProcessing = isProcessingRequest(requestDto);
     if (isInProcessing) {
-      sameAsProcessingRequestsByLink.put(resultDto.getRequestResultId(), requestDto);
+      sameAsProcessingRequestsByLink.put(resultDto.getSearchResponseId(), requestDto);
     } else {
       queue.add(requestDto);
     }
   }
 
 
-  private <T extends ProcessedRequestDto> String  downloadLinkContent(T requestDto, Semaphore semaphore) {
-    var link = requestDto.getRequest().getUrl();
+  private <T extends ProcessedSearchResponseDto> String  downloadLinkContent(T requestDto, Semaphore semaphore) {
+    var link = requestDto.getSearchResponse().getUrl();
 
     if (requestDto.getAttempt() >= fetchProperties.getMaxDownloadAttempt()) {
       log.warn("Превышен лимит попыток скачивания {}", link);
       throw new IllegalStateException("Превышен лимит попыток скачивания!");
     }
 
-    var isAllowed = isParsingAllowed(requestDto.getRequest().getUrl());
+    var isAllowed = isParsingAllowed(requestDto.getSearchResponse().getUrl());
 
     if (!isAllowed) {
       log.warn("Парсинг ссылки не разрешен {}", link);
@@ -134,8 +134,8 @@ public class Crawler {
       throw new IllegalStateException("Слишком большой размер скачиваемой страницы!");
     } catch (Exception e) {
       log.warn("Проблемы со скачиванием по ссылке {}, перемещено в очередь для повторного запроса", link);
-      var delayedProcess = new DelayedProcessRequestDto();
-      delayedProcess.setRequest(requestDto.getRequest());
+      var delayedProcess = new DelayedProcessedSearchResponseDto();
+      delayedProcess.setSearchResponse(requestDto.getSearchResponse());
       delayedProcess.setAttempt(requestDto.getAttempt() + 1);
       delayedProcess.setDelayInSeconds(fetchProperties.getRepeatDownloadDelay());
       delayQueue.add(delayedProcess);
@@ -185,11 +185,11 @@ public class Crawler {
     return rules.isAllowed(link);
   }
 
-  private boolean isProcessingRequest(ProcessedRequestDto requestDto) {
-    var requestId = requestDto.getRequest().getRequestResultId();
+  private boolean isProcessingRequest(ProcessedSearchResponseDto requestDto) {
+    var requestId = requestDto.getSearchResponse().getSearchResponseId();
 
-    var isInQueue = queue.stream().anyMatch(req -> req.getRequest().getRequestResultId().equals(requestId));
-    var isInDelayQueue = delayQueue.stream().anyMatch(req -> req.getRequest().getRequestResultId().equals(requestId));
+    var isInQueue = queue.stream().anyMatch(req -> req.getSearchResponse().getSearchResponseId().equals(requestId));
+    var isInDelayQueue = delayQueue.stream().anyMatch(req -> req.getSearchResponse().getSearchResponseId().equals(requestId));
 
     return Stream.of(
       isInQueue,
@@ -197,11 +197,11 @@ public class Crawler {
     ).anyMatch(Boolean::booleanValue);
   }
 
-  private List<ProcessedRequestDto> findWaitingRequests(String link) {
-    var processingRequests = new ArrayList<ProcessedRequestDto>();
+  private List<ProcessedSearchResponseDto> findWaitingRequests(String link) {
+    var processingRequests = new ArrayList<ProcessedSearchResponseDto>();
     sameAsProcessingRequestsByLink.entrySet().forEach(entry -> {
       var value = entry.getValue();
-      var isSameLink = entry.getValue().getRequest().getUrl().equals(link);
+      var isSameLink = entry.getValue().getSearchResponse().getUrl().equals(link);
       if (isSameLink) {
         processingRequests.add(value);
       }
@@ -210,12 +210,12 @@ public class Crawler {
     return processingRequests;
   }
 
-  private <T extends ProcessedRequestDto> List<RequestWithContent> prepareRequestsWithContent(
+  private <T extends ProcessedSearchResponseDto> List<SearchResponseDtoWithContent> prepareRequestsWithContent(
     T request,
     Semaphore semaphore
   ) {
-    var requests = new ArrayList<RequestWithContent>();
-    var waitingRequests = findWaitingRequests(request.getRequest().getUrl());
+    var requests = new ArrayList<SearchResponseDtoWithContent>();
+    var waitingRequests = findWaitingRequests(request.getSearchResponse().getUrl());
     String content;
 
     try {
@@ -224,19 +224,19 @@ public class Crawler {
       throw new IllegalStateException(ex.getMessage(), ex);
     } finally {
       waitingRequests.forEach(req -> {
-        sameAsProcessingRequestsByLink.remove(req.getRequest().getRequestResultId());
+        sameAsProcessingRequestsByLink.remove(req.getSearchResponse().getSearchResponseId());
       });
     }
 
-    var requestWithContent = new RequestWithContent();
-    requestWithContent.setRequestResult(request.getRequest());
+    var requestWithContent = new SearchResponseDtoWithContent();
+    requestWithContent.setSearchResponse(request.getSearchResponse());
     requestWithContent.setContent(content);
     requests.add(requestWithContent);
 
     var waitingRequestsContent = waitingRequests.stream().map(req -> {
-      var watingRequestWithContent = new RequestWithContent();
+      var watingRequestWithContent = new SearchResponseDtoWithContent();
       watingRequestWithContent.setContent(content);
-      watingRequestWithContent.setRequestResult(req.getRequest());
+      watingRequestWithContent.setSearchResponse(req.getSearchResponse());
       return watingRequestWithContent;
     }).toList();
     requests.addAll(waitingRequestsContent);
@@ -244,9 +244,9 @@ public class Crawler {
   }
 
   private void saveErrorRequestOutboxMessage(UUID requestResultId, String errorMessage) {
-    var requestOutboxMessage = requestResultOutboxMessageService.createOutboxRequestError(
+    var requestOutboxMessage = searchResponseMessageService.createOutboxRequestError(
       requestResultId, errorMessage
     );
-    requestResultOutboxMessageService.save(requestOutboxMessage);
+    searchResponseMessageService.save(requestOutboxMessage);
   }
 }

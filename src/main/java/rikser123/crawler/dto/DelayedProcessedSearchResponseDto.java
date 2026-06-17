@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class DelayedProcessRequestDto extends ProcessedRequestDto implements Delayed {
+public class DelayedProcessedSearchResponseDto extends ProcessedSearchResponseDto implements Delayed {
   private int attempt;
   private int delayInSeconds;
 

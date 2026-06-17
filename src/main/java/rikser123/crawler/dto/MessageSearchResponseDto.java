@@ -12,9 +12,9 @@ import java.util.UUID;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class KafkaMessageRequestResultDto {
-  @NotNull(message = "Параметр requestResultId должен быть заполнен!")
-  private UUID requestResultId;
+public class MessageSearchResponseDto {
+  @NotNull(message = "Параметр searchResponseId должен быть заполнен!")
+  private UUID searchResponseId;
 
   @NotNull(message = "Параметр userId должен быть заполнен!")
   private UUID userId;

@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class RequestWithContent {
-  private KafkaMessageRequestResultDto requestResult;
+public class SearchResponseDtoWithContent {
+  private MessageSearchResponseDto searchResponse;
   private String content;
 }

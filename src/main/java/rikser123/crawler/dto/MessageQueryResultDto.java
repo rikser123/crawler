@@ -9,15 +9,15 @@ import java.util.UUID;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class KafkaMessageRequestResultStatusDto {
-  private UUID requestResultId;
-  private KafkaMessageRequestStatus status;
-  private KafkaMessageError error;
+public class MessageQueryResultDto {
+  private UUID searchResponseId;
+  private SearchResponseStatus status;
+  private MessageError error;
 
   @Data
   @AllArgsConstructor
   @NoArgsConstructor
-  public static class KafkaMessageError {
+  public static class MessageError {
     private String message;
     private String code;
   }
