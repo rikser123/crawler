@@ -97,8 +97,11 @@ public class Crawler {
     requestDto.setSearchResponse(resultDto);
 
     var isInProcessing = isProcessingRequest(requestDto);
+    var sameDomainCount = queue.stream().filter(response -> response.getSearchResponse().getDomain().equals(resultDto.getDomain())).count();
     if (isInProcessing) {
       sameAsProcessingRequestsByLink.put(resultDto.getSearchResponseId(), requestDto);
+    } else if (sameDomainCount > 0) {
+      addDelayProcess(requestDto);
     } else {
       queue.add(requestDto);
     }
@@ -137,19 +140,30 @@ public class Crawler {
       throw new IllegalStateException("Слишком большой размер скачиваемой страницы!");
     } catch (Exception e) {
       log.warn("Проблемы со скачиванием по ссылке {}, перемещено в очередь для повторного запроса", link);
-      var delayedProcess = new DelayedProcessedSearchResponseDto();
-      delayedProcess.setSearchResponse(requestDto.getSearchResponse());
-      delayedProcess.setAttempt(requestDto.getAttempt() + 1);
-
-      var randomPercent = random.nextInt(RANDOM_BOUND);
-      var delayTime = fetchProperties.getRepeatDownloadDelay() + (fetchProperties.getRepeatDownloadDelay() / 100 * randomPercent);
-
-      delayedProcess.setDelayInSeconds(delayTime);
-      delayQueue.add(delayedProcess);
+      addDelayProcess(requestDto);
       return null;
     } finally {
       semaphore.release();
     }
+  }
+
+  private <T extends ProcessedSearchResponseDto> void addDelayProcess(T requestDto) {
+    var delayedProcess = new DelayedProcessedSearchResponseDto();
+    delayedProcess.setSearchResponse(requestDto.getSearchResponse());
+    delayedProcess.setAttempt(requestDto.getAttempt() + 1);
+
+    var randomPercent = random.nextInt(RANDOM_BOUND);
+    var delayTime = fetchProperties.getRepeatDownloadDelay() + (fetchProperties.getRepeatDownloadDelay() / 100 * randomPercent);
+    var sameDomainCount = delayQueue.stream()
+      .filter(response -> response.getSearchResponse().getDomain().equals(requestDto.getSearchResponse().getDomain()))
+      .count();
+
+    if (sameDomainCount > 0) {
+      delayTime += fetchProperties.getRepeatDownloadDelay() * sameDomainCount;
+    }
+
+    delayedProcess.setDelayInSeconds(delayTime);
+    delayQueue.add(delayedProcess);
   }
 
   private boolean isParsingAllowed(String link) {
