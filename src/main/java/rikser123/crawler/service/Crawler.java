@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,6 +42,8 @@ public class Crawler {
   private static final Map<String, SimpleRobotRules> domainRobotRules = new ConcurrentHashMap<>();
   private static final RestTemplate restTemplate = new RestTemplate();
   private static final Executor executors = Executors.newVirtualThreadPerTaskExecutor();
+  private static final Random random = new Random();
+  private static final Integer RANDOM_BOUND = 30;
 
   private static final BlockingQueue<ProcessedSearchResponseDto> queue = new LinkedBlockingQueue<>();
   private static final DelayQueue<DelayedProcessedSearchResponseDto> delayQueue = new DelayQueue<>();
@@ -137,7 +140,11 @@ public class Crawler {
       var delayedProcess = new DelayedProcessedSearchResponseDto();
       delayedProcess.setSearchResponse(requestDto.getSearchResponse());
       delayedProcess.setAttempt(requestDto.getAttempt() + 1);
-      delayedProcess.setDelayInSeconds(fetchProperties.getRepeatDownloadDelay());
+
+      var randomPercent = random.nextInt(RANDOM_BOUND);
+      var delayTime = fetchProperties.getRepeatDownloadDelay() + (fetchProperties.getRepeatDownloadDelay() / 100 * randomPercent);
+
+      delayedProcess.setDelayInSeconds(delayTime);
       delayQueue.add(delayedProcess);
       return null;
     } finally {
