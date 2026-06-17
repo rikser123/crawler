@@ -6,6 +6,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,8 @@ import rikser123.crawler.dto.DelayedProcessedSearchResponseDto;
 import rikser123.crawler.dto.MessageSearchResponseDto;
 import rikser123.crawler.dto.ProcessedSearchResponseDto;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.event.FinishDownloadContentEvent;
+import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 import rikser123.crawler.exception.BigSizeContentException;
 
 import java.net.URI;
@@ -53,7 +56,7 @@ public class Crawler {
 
   private final FetchConfigProperties fetchProperties;
   private final CrawlerResponseExtractor crawlerResponseExtractor;
-  private final SearchResponseMessageService searchResponseMessageService;
+  private final ApplicationEventPublisher eventPublisher;
 
   @PostConstruct
   void init() {
@@ -66,9 +69,12 @@ public class Crawler {
         try {
           var request = queue.take();
           requestResultId = request.getSearchResponse().getSearchResponseId();
-          executors.execute(() -> prepareRequestsWithContent(request, queueSemaphore));
+          executors.execute(() -> {
+            var result = prepareRequestsWithContent(request, queueSemaphore);
+            publishFinishDownloadContentEvent(result);
+          });
         } catch (IllegalStateException ex) {
-          saveErrorRequestOutboxMessage(requestResultId,ex.getMessage());
+          publishErrorEvent(requestResultId,ex.getMessage());
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
         }
@@ -81,10 +87,13 @@ public class Crawler {
         try {
           var request = delayQueue.take();
           requestResultId = request.getSearchResponse().getSearchResponseId();
-          executors.execute(() -> prepareRequestsWithContent(request, delayQueueSemaphore));
+          executors.execute(() -> {
+            var result =  prepareRequestsWithContent(request, delayQueueSemaphore);
+            publishFinishDownloadContentEvent(result);
+          });
         } catch (IllegalStateException ex) {
-          saveErrorRequestOutboxMessage(requestResultId,ex.getMessage());
-        }catch (InterruptedException e) {
+          publishErrorEvent(requestResultId,ex.getMessage());
+        } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
         }
       }
@@ -264,10 +273,16 @@ public class Crawler {
     return requests;
   }
 
-  private void saveErrorRequestOutboxMessage(UUID requestResultId, String errorMessage) {
-    var requestOutboxMessage = searchResponseMessageService.createOutboxRequestError(
-      requestResultId, errorMessage
-    );
-    searchResponseMessageService.save(requestOutboxMessage);
+  private void publishFinishDownloadContentEvent(List<SearchResponseDtoWithContent> downloadedContents) {
+    var finishEvent = new FinishDownloadContentEvent();
+    finishEvent.setContext(downloadedContents);
+    eventPublisher.publishEvent(finishEvent);
+  }
+
+  private void publishErrorEvent(UUID searchResponseId, String errorMessage) {
+    var errorEvent = new ResponseProcessingErrorEvent();
+    errorEvent.setMessage(errorMessage);
+    errorEvent.setSearchResponseId(searchResponseId);
+    eventPublisher.publishEvent(errorEvent);
   }
 }
