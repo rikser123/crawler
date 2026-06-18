@@ -1,6 +1,5 @@
 package rikser123.crawler.service;
 
-import crawlercommons.robots.SimpleRobotRules;
 import crawlercommons.robots.SimpleRobotRulesParser;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +10,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.CrawlerResponseExtractor;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.DelayedProcessedSearchResponseDto;
@@ -42,7 +42,6 @@ import java.util.stream.Stream;
 @Service
 @Slf4j
 public class Crawler {
-  private static final Map<String, SimpleRobotRules> domainRobotRules = new ConcurrentHashMap<>();
   private static final Executor executors = Executors.newVirtualThreadPerTaskExecutor();
   private static final Random random = new Random();
   private static final Integer RANDOM_BOUND = 30;
@@ -57,6 +56,7 @@ public class Crawler {
   private final CrawlerResponseExtractor crawlerResponseExtractor;
   private final ApplicationEventPublisher eventPublisher;
   private final RestTemplate restTemplate;
+  private final RedisCacheService redisCacheService;
 
   @PostConstruct
   void init() {
@@ -185,34 +185,42 @@ public class Crawler {
         return false;
     }
     var domain = url.getHost();
-
-    if (domainRobotRules.containsKey(domain)) {
-      return domainRobotRules.get(domain).isAllowed(link);
-    }
-
     var robotsLink = url.getScheme() + "://" + domain + "/robots.txt";
+    var robotsResponse = redisCacheService.get(domain, String.class)
+      .orElseGet(() -> downloadDomainRobotsFile(domain, robotsLink));
 
-    var robotsResponse = restTemplate.getForEntity(robotsLink, String.class);
-
-    if (StringUtils.isEmpty(robotsResponse.getBody())) {
-      return true;
-    }
-
-    var status = robotsResponse.getStatusCode();
-    if (!status.equals(HttpStatus.OK) && !status.equals(HttpStatus.NO_CONTENT)) {
+    if (StringUtils.isEmpty(robotsResponse)) {
       return true;
     }
 
     var robotsRulesParser = new SimpleRobotRulesParser();
     var rules = robotsRulesParser.parseContent(
       robotsLink,
-      robotsResponse.getBody().getBytes(StandardCharsets.UTF_8),
+      robotsResponse.getBytes(StandardCharsets.UTF_8),
       "text/plain",
       "CrawlerBot/1.0"
     );
-    domainRobotRules.put(domain, rules);
 
     return rules.isAllowed(link);
+  }
+
+  private String downloadDomainRobotsFile(String domain, String robotsLink) {
+    var response = restTemplate.getForEntity(robotsLink, String.class);
+    var status = response.getStatusCode();
+
+    if (StringUtils.isEmpty(response.getBody())) {
+      return null;
+    }
+
+    if (!status.equals(HttpStatus.OK) && !status.equals(HttpStatus.NO_CONTENT)) {
+      return null;
+    }
+
+    var body = response.getBody();
+
+    redisCacheService.put(domain, body);
+
+    return body;
   }
 
   private boolean isProcessingRequest(ProcessedSearchResponseDto requestDto) {

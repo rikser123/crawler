@@ -28,6 +28,12 @@ spring:
     bootstrap-servers: ${KAFKA_URL}
     consumer:
       group-id: crawler
+  data:
+    redis:
+      host: ${REDIS_URL}
+      port: 6379
+      password: ${REDIS_PASSWORD}
+      timeout: 2000ms
 
 
 server:
@@ -39,6 +45,10 @@ bundle:
     service:
       enabled: true
       url: ${SECURITY_URL}
+  redis:
+    TTL: P1D
+    prefix: yandex-query
+    enabled: true
   kafka:
     enabled: true
     user: ${KAFKA_USER}
