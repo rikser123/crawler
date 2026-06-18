@@ -29,6 +29,7 @@ spring:
     consumer:
       group-id: crawler
 
+
 server:
   port: 8081
 
@@ -73,3 +74,7 @@ fetch:
 
 kafka:
   scheduler-delay: PT10S
+
+rest:
+  connection-timeout: 5
+  read-timeout: 10

@@ -43,7 +43,6 @@ import java.util.stream.Stream;
 @Slf4j
 public class Crawler {
   private static final Map<String, SimpleRobotRules> domainRobotRules = new ConcurrentHashMap<>();
-  private static final RestTemplate restTemplate = new RestTemplate();
   private static final Executor executors = Executors.newVirtualThreadPerTaskExecutor();
   private static final Random random = new Random();
   private static final Integer RANDOM_BOUND = 30;
@@ -57,6 +56,7 @@ public class Crawler {
   private final FetchConfigProperties fetchProperties;
   private final CrawlerResponseExtractor crawlerResponseExtractor;
   private final ApplicationEventPublisher eventPublisher;
+  private final RestTemplate restTemplate;
 
   @PostConstruct
   void init() {
