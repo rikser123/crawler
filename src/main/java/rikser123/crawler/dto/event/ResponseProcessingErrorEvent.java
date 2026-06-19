@@ -13,4 +13,5 @@ public class ResponseProcessingErrorEvent {
   private String code;
   private String message;
   private UUID searchResponseId;
+  private String url;
 }

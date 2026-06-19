@@ -10,15 +10,26 @@ import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 import rikser123.crawler.service.Crawler;
 import rikser123.crawler.service.SearchResponseMessageService;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class PipelineOrchestrator {
+  private static final Map<UUID, MessageSearchResponseDto> searchResponsesInProcessing = new HashMap<>();
+
   private final Crawler crawler;
   private final SearchResponseMessageService searchResponseMessageService;
 
+
   public void initResponseProcessing(MessageSearchResponseDto responseDto) {
-    crawler.initDownloading(responseDto);
+    var isSameUrlInProcessing = searchResponsesInProcessing.values().stream().anyMatch(response -> response.getUrl().equals(responseDto.getUrl()));
+    if (!isSameUrlInProcessing) {
+      crawler.initDownloading(responseDto);
+    }
+    searchResponsesInProcessing.put(responseDto.getSearchResponseId(), responseDto);
   }
 
   @EventListener
@@ -29,11 +40,17 @@ public class PipelineOrchestrator {
   @EventListener
   void processingErrorListener(ResponseProcessingErrorEvent event) {
     var errorMessage = event.getMessage();
-    var searchResponseId = event.getSearchResponseId();
-    var requestOutboxMessage = searchResponseMessageService.createOutboxRequestError(
-      searchResponseId, errorMessage
-    );
+    var url = event.getUrl();
+    var sameProcessingResponse = searchResponsesInProcessing
+      .values()
+      .stream()
+      .filter(response -> response.getUrl().equals(url))
+      .map(MessageSearchResponseDto::getSearchResponseId)
+      .peek(responseId -> {
+        searchResponsesInProcessing.remove(responseId);
+      }).map(responseId -> searchResponseMessageService.createOutboxRequestError(responseId, errorMessage))
+      .toList();
 
-    searchResponseMessageService.save(requestOutboxMessage);
+    searchResponseMessageService.saveAll(sameProcessingResponse);
   }
 }

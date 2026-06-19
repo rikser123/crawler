@@ -24,19 +24,15 @@ import rikser123.crawler.exception.BigSizeContentException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.Queue;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
-import java.util.stream.Stream;
 
 @RequiredArgsConstructor
 @Service
@@ -48,7 +44,6 @@ public class Crawler {
 
   private static final BlockingQueue<ProcessedSearchResponseDto> queue = new LinkedBlockingQueue<>();
   private static final DelayQueue<DelayedProcessedSearchResponseDto> delayQueue = new DelayQueue<>();
-  private static final Map<UUID, ProcessedSearchResponseDto> sameAsProcessingRequestsByLink = new ConcurrentHashMap<>();
   private static Semaphore queueSemaphore;
   private static Semaphore delayQueueSemaphore;
 
@@ -63,41 +58,8 @@ public class Crawler {
     queueSemaphore = new Semaphore(fetchProperties.getQueueLimit());
     delayQueueSemaphore = new Semaphore(fetchProperties.getTimeoutQueueLimit());
 
-    executors.execute(() -> {
-      while (true) {
-        UUID requestResultId = null;
-        try {
-          var request = queue.take();
-          requestResultId = request.getSearchResponse().getSearchResponseId();
-          executors.execute(() -> {
-            var result = prepareRequestsWithContent(request, queueSemaphore);
-            publishFinishDownloadContentEvent(result);
-          });
-        } catch (IllegalStateException ex) {
-          publishErrorEvent(requestResultId,ex.getMessage());
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-        }
-      }
-    });
-
-    executors.execute(() -> {
-      while (true) {
-        UUID requestResultId = null;
-        try {
-          var request = delayQueue.take();
-          requestResultId = request.getSearchResponse().getSearchResponseId();
-          executors.execute(() -> {
-            var result =  prepareRequestsWithContent(request, delayQueueSemaphore);
-            publishFinishDownloadContentEvent(result);
-          });
-        } catch (IllegalStateException ex) {
-          publishErrorEvent(requestResultId,ex.getMessage());
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-        }
-      }
-    });
+    initThreadPool(queue, queueSemaphore);
+    initThreadPool(delayQueue, delayQueueSemaphore);
   }
 
   public void initDownloading(MessageSearchResponseDto resultDto) {
@@ -105,17 +67,34 @@ public class Crawler {
     requestDto.setAttempt(0);
     requestDto.setSearchResponse(resultDto);
 
-    var isInProcessing = isProcessingRequest(requestDto);
     var sameDomainCount = queue.stream().filter(response -> response.getSearchResponse().getDomain().equals(resultDto.getDomain())).count();
-    if (isInProcessing) {
-      sameAsProcessingRequestsByLink.put(resultDto.getSearchResponseId(), requestDto);
-    } else if (sameDomainCount > 0) {
+    if (sameDomainCount > 0) {
       addDelayProcess(requestDto);
     } else {
       queue.add(requestDto);
     }
   }
 
+  private <T extends  ProcessedSearchResponseDto>void initThreadPool(BlockingQueue<T> queue, Semaphore semaphore) {
+    executors.execute(() -> {
+      while (true) {
+        UUID requestResultId = null;
+        try {
+          var request = queue.take();
+          requestResultId = request.getSearchResponse().getSearchResponseId();
+          executors.execute(() -> {
+            var content = downloadLinkContent(request, semaphore);
+            var requestWithContent = prepareRequestsWithContent(request, content);
+            publishFinishDownloadContentEvent(requestWithContent);
+          });
+        } catch (IllegalStateException ex) {
+          publishErrorEvent(requestResultId,ex.getMessage());
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+        }
+      }
+    });
+  }
 
   private <T extends ProcessedSearchResponseDto> String  downloadLinkContent(T requestDto, Semaphore semaphore) {
     var link = requestDto.getSearchResponse().getUrl();
@@ -223,67 +202,20 @@ public class Crawler {
     return body;
   }
 
-  private boolean isProcessingRequest(ProcessedSearchResponseDto requestDto) {
-    var requestId = requestDto.getSearchResponse().getSearchResponseId();
-
-    var isInQueue = queue.stream().anyMatch(req -> req.getSearchResponse().getSearchResponseId().equals(requestId));
-    var isInDelayQueue = delayQueue.stream().anyMatch(req -> req.getSearchResponse().getSearchResponseId().equals(requestId));
-
-    return Stream.of(
-      isInQueue,
-      isInDelayQueue
-    ).anyMatch(Boolean::booleanValue);
-  }
-
-  private List<ProcessedSearchResponseDto> findWaitingRequests(String link) {
-    var processingRequests = new ArrayList<ProcessedSearchResponseDto>();
-    sameAsProcessingRequestsByLink.entrySet().forEach(entry -> {
-      var value = entry.getValue();
-      var isSameLink = entry.getValue().getSearchResponse().getUrl().equals(link);
-      if (isSameLink) {
-        processingRequests.add(value);
-      }
-    });
-
-    return processingRequests;
-  }
-
-  private <T extends ProcessedSearchResponseDto> List<SearchResponseDtoWithContent> prepareRequestsWithContent(
+  private <T extends ProcessedSearchResponseDto> SearchResponseDtoWithContent prepareRequestsWithContent(
     T request,
-    Semaphore semaphore
+    String content
   ) {
-    var requests = new ArrayList<SearchResponseDtoWithContent>();
-    var waitingRequests = findWaitingRequests(request.getSearchResponse().getUrl());
-    String content;
-
-    try {
-      content = downloadLinkContent(request, semaphore);
-    } catch (IllegalStateException ex) {
-      throw new IllegalStateException(ex.getMessage(), ex);
-    } finally {
-      waitingRequests.forEach(req -> {
-        sameAsProcessingRequestsByLink.remove(req.getSearchResponse().getSearchResponseId());
-      });
-    }
-
     var requestWithContent = new SearchResponseDtoWithContent();
     requestWithContent.setSearchResponse(request.getSearchResponse());
     requestWithContent.setContent(content);
-    requests.add(requestWithContent);
 
-    var waitingRequestsContent = waitingRequests.stream().map(req -> {
-      var watingRequestWithContent = new SearchResponseDtoWithContent();
-      watingRequestWithContent.setContent(content);
-      watingRequestWithContent.setSearchResponse(req.getSearchResponse());
-      return watingRequestWithContent;
-    }).toList();
-    requests.addAll(waitingRequestsContent);
-    return requests;
+    return requestWithContent;
   }
 
-  private void publishFinishDownloadContentEvent(List<SearchResponseDtoWithContent> downloadedContents) {
+  private void publishFinishDownloadContentEvent(SearchResponseDtoWithContent content) {
     var finishEvent = new FinishDownloadContentEvent();
-    finishEvent.setContext(downloadedContents);
+    finishEvent.setContext(content);
     eventPublisher.publishEvent(finishEvent);
   }
 
