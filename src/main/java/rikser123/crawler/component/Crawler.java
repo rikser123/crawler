@@ -1,4 +1,4 @@
-package rikser123.crawler.service;
+package rikser123.crawler.component;
 
 import crawlercommons.robots.SimpleRobotRulesParser;
 import jakarta.annotation.PostConstruct;

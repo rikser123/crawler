@@ -95,6 +95,9 @@ dependencies {
     mockitoAgent("org.mockito:mockito-core") { isTransitive = false }
     annotationProcessor("org.mapstruct:mapstruct-processor:1.5.5.Final")
     implementation("rikser123:bundle:0.0.137")
+    implementation("org.apache.tika:tika-core:3.2.2")
+    implementation("org.apache.tika:tika-parser-html-module:3.2.2")
+    implementation("org.apache.tika:tika-handler-boilerpipe:3.2.2")
     testImplementation("org.springframework.boot:spring-boot-test-autoconfigure")
     testImplementation("org.mock-server:mockserver-netty:5.15.0")
     testImplementation("org.springframework.kafka:spring-kafka-test") {

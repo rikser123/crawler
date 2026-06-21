@@ -5,9 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import rikser123.crawler.dto.MessageSearchResponseDto;
+import rikser123.crawler.dto.event.FinishCleanContentEvent;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
 import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
-import rikser123.crawler.service.Crawler;
 import rikser123.crawler.service.SearchResponseMessageService;
 
 import java.util.HashMap;
@@ -21,6 +21,7 @@ public class PipelineOrchestrator {
   private static final Map<UUID, MessageSearchResponseDto> searchResponsesInProcessing = new HashMap<>();
 
   private final Crawler crawler;
+  private final TextExtractor textExtractor;
   private final SearchResponseMessageService searchResponseMessageService;
 
 
@@ -34,6 +35,11 @@ public class PipelineOrchestrator {
 
   @EventListener
   void finishDownloadContentListener(FinishDownloadContentEvent event) {
+    textExtractor.initExtraction(event.getContext());
+  }
+
+  @EventListener
+  void finisCleanContentListener(FinishCleanContentEvent event) {
 
   }
 
