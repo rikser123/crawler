@@ -1,4 +1,4 @@
-package rikser123.crawler.component;
+package rikser123.crawler.service;
 
 import crawlercommons.robots.SimpleRobotRulesParser;
 import jakarta.annotation.PostConstruct;
@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import rikser123.bundle.service.RedisCacheService;
+import rikser123.crawler.component.CrawlerResponseExtractor;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.DelayedProcessedSearchResponseDto;
 import rikser123.crawler.dto.MessageSearchResponseDto;

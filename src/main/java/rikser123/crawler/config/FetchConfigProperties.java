@@ -17,4 +17,5 @@ public class FetchConfigProperties {
   private int maxDownloadAttempt;
   private int repeatDownloadDelay;
   private int maxBodySize;
+  private int chunkSize;
 }

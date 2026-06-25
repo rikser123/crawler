@@ -1,20 +1,20 @@
-package rikser123.crawler.component;
+package rikser123.crawler.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import rikser123.crawler.dto.MessageSearchResponseDto;
 import rikser123.crawler.dto.event.FinishCleanContentEvent;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
+import rikser123.crawler.dto.event.FinishSplitChunksEvent;
 import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
-import rikser123.crawler.service.SearchResponseMessageService;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-@Component
+@Service
 @RequiredArgsConstructor
 @Slf4j
 public class PipelineOrchestrator {
@@ -22,6 +22,7 @@ public class PipelineOrchestrator {
 
   private final Crawler crawler;
   private final TextExtractor textExtractor;
+  private final ChunkSplitter chunkSplitter;
   private final SearchResponseMessageService searchResponseMessageService;
 
 
@@ -40,6 +41,11 @@ public class PipelineOrchestrator {
 
   @EventListener
   void finisCleanContentListener(FinishCleanContentEvent event) {
+    chunkSplitter.initSpliting(event.getSearchResponseDto());
+  }
+
+  @EventListener
+  void finishSplitChunkEventListener(FinishSplitChunksEvent event) {
 
   }
 
