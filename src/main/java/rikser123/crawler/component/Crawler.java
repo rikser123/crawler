@@ -11,7 +11,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import rikser123.bundle.service.RedisCacheService;
-import rikser123.crawler.component.CrawlerResponseExtractor;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.DelayedProcessedSearchResponseDto;
 import rikser123.crawler.dto.MessageSearchResponseDto;
@@ -20,11 +19,11 @@ import rikser123.crawler.dto.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
 import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 import rikser123.crawler.exception.BigSizeContentException;
+import rikser123.crawler.utils.CaptchaUtils;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
-import java.util.Queue;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
@@ -122,6 +121,14 @@ public class Crawler {
         crawlerResponseExtractor,
         String.class
       );
+
+      var isCaptcha = CaptchaUtils.isCaptcha(response);
+      if (isCaptcha) {
+        log.warn("Обнаружена капче по ссылке {}, перемещено в очередь для повторного запроса", link);
+        addDelayProcess(requestDto);
+        return null;
+      }
+
       return response;
     } catch (BigSizeContentException e) {
       log.warn("Слишком большой размер скачиваемой страницы!", e);

@@ -16,6 +16,7 @@ import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
