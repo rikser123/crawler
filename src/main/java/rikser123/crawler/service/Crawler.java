@@ -14,7 +14,7 @@ import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.CrawlerResponseExtractor;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.DelayedProcessedSearchResponseDto;
-import rikser123.crawler.dto.MessageSearchResponseDto;
+import rikser123.crawler.dto.SearchResponseDto;
 import rikser123.crawler.dto.ProcessedSearchResponseDto;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
@@ -62,7 +62,7 @@ public class Crawler {
     initThreadPool(delayQueue, delayQueueSemaphore);
   }
 
-  public void initDownloading(MessageSearchResponseDto resultDto) {
+  public void initDownloading(SearchResponseDto resultDto) {
     var requestDto = new ProcessedSearchResponseDto();
     requestDto.setAttempt(0);
     requestDto.setSearchResponse(resultDto);

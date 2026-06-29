@@ -9,7 +9,7 @@ import org.mockito.Mock;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import rikser123.crawler.config.FetchConfigProperties;
-import rikser123.crawler.dto.MessageSearchResponseDto;
+import rikser123.crawler.dto.SearchResponseDto;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishSplitChunksEvent;
 import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
@@ -115,7 +115,7 @@ public class ChunkSplitterTest {
 
   private static SearchResponseDtoWithContent createSearchDto(String content) {
     var dto = new SearchResponseDtoWithContent();
-    var searchResponse = new MessageSearchResponseDto();
+    var searchResponse = new SearchResponseDto();
     searchResponse.setSearchResponseId(UUID.randomUUID());
     dto.setSearchResponse(searchResponse);
     dto.setContent(content);

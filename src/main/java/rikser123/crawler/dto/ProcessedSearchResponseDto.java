@@ -8,6 +8,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ProcessedSearchResponseDto {
-  private MessageSearchResponseDto searchResponse;
+  private SearchResponseDto searchResponse;
   private int attempt;
 }
