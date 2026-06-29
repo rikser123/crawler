@@ -5,20 +5,19 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.CrawlerResponseExtractor;
+import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.DelayedProcessedSearchResponseDto;
 import rikser123.crawler.dto.SearchResponseDto;
 import rikser123.crawler.dto.ProcessedSearchResponseDto;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
-import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 import rikser123.crawler.exception.BigSizeContentException;
 import rikser123.crawler.utils.CaptchaUtils;
 
@@ -26,7 +25,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
 import java.util.Random;
-import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Executor;
@@ -49,9 +47,9 @@ public class Crawler {
 
   private final FetchConfigProperties fetchProperties;
   private final CrawlerResponseExtractor crawlerResponseExtractor;
-  private final ApplicationEventPublisher eventPublisher;
   private final RestTemplate restTemplate;
   private final RedisCacheService redisCacheService;
+  private final EventPublisher eventPublisher;
 
   @PostConstruct
   void init() {
@@ -78,17 +76,17 @@ public class Crawler {
   private <T extends  ProcessedSearchResponseDto>void initThreadPool(BlockingQueue<T> queue, Semaphore semaphore) {
     executors.execute(() -> {
       while (true) {
-        UUID requestResultId = null;
+        SearchResponseDto searchResponseDto = null;
         try {
           var request = queue.take();
-          requestResultId = request.getSearchResponse().getSearchResponseId();
+          searchResponseDto = request.getSearchResponse();
           executors.execute(() -> {
             var content = downloadLinkContent(request, semaphore);
             var requestWithContent = prepareRequestsWithContent(request, content);
             publishFinishDownloadContentEvent(requestWithContent);
           });
-        } catch (IllegalStateException ex) {
-          publishErrorEvent(requestResultId,ex.getMessage());
+        } catch (IllegalStateException e) {
+          eventPublisher.publishResponseProcessingErrorEvent(searchResponseDto, e.getMessage());
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
         }
@@ -225,12 +223,5 @@ public class Crawler {
     var finishEvent = new FinishDownloadContentEvent();
     finishEvent.setContext(content);
     eventPublisher.publishEvent(finishEvent);
-  }
-
-  private void publishErrorEvent(UUID searchResponseId, String errorMessage) {
-    var errorEvent = new ResponseProcessingErrorEvent();
-    errorEvent.setMessage(errorMessage);
-    errorEvent.setSearchResponseId(searchResponseId);
-    eventPublisher.publishEvent(errorEvent);
   }
 }

@@ -6,8 +6,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.SearchResponseDto;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
@@ -30,7 +30,7 @@ public class ChunkSplitterTest {
   private ChunkSplitter chunkSplitter;
 
   @Mock
-  private ApplicationEventPublisher applicationEventPublisher;
+  private EventPublisher eventPublisher;
 
   @Captor
   private ArgumentCaptor<FinishSplitChunksEvent> eventCaptor;
@@ -42,7 +42,7 @@ public class ChunkSplitterTest {
   void init() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
     var fetchConfig = new FetchConfigProperties();
     fetchConfig.setChunkSize(700);
-    chunkSplitter = new ChunkSplitter(fetchConfig, applicationEventPublisher);
+    chunkSplitter = new ChunkSplitter(fetchConfig, eventPublisher);
 
     var initMethod = ChunkSplitter.class.getDeclaredMethod("init");
     initMethod.setAccessible(true);
@@ -58,7 +58,7 @@ public class ChunkSplitterTest {
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
       .untilAsserted(() -> {
-        verify(applicationEventPublisher, atLeastOnce())
+        verify(eventPublisher, atLeastOnce())
           .publishEvent(eventCaptor.capture());
 
         var event = eventCaptor.getValue();
@@ -74,7 +74,7 @@ public class ChunkSplitterTest {
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
       .untilAsserted(() -> {
-        verify(applicationEventPublisher, atLeastOnce())
+        verify(eventPublisher, atLeastOnce())
           .publishEvent(eventCaptor.capture());
 
         var event = eventCaptor.getValue();
@@ -90,7 +90,7 @@ public class ChunkSplitterTest {
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
       .untilAsserted(() -> {
-        verify(applicationEventPublisher, atLeastOnce())
+        verify(eventPublisher, atLeastOnce())
           .publishEvent(eventCaptor.capture());
 
         var event = eventCaptor.getValue();
@@ -105,7 +105,7 @@ public class ChunkSplitterTest {
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
       .untilAsserted(() -> {
-        verify(applicationEventPublisher, atLeastOnce())
+        verify(eventPublisher, atLeastOnce())
           .publishEvent(eventErrorCaptor.capture());
 
         var event = eventErrorCaptor.getValue();

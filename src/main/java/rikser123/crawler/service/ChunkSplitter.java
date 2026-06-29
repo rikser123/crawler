@@ -4,15 +4,13 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.SearchResponseDtoWithChunks;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishSplitChunksEvent;
-import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -34,7 +32,7 @@ public class ChunkSplitter {
   private static final int WORD_OVERLAP_COUNT = 20;
 
   private final FetchConfigProperties fetchConfigProperties;
-  private final ApplicationEventPublisher eventPublisher;
+  private final EventPublisher eventPublisher;
 
   @PostConstruct
   void init() {
@@ -59,8 +57,8 @@ public class ChunkSplitter {
       var text = searchResponse.getContent();
       if (StringUtils.isEmpty(text)) {
         log.warn("Переданный тест пустой! {}", searchResponse.getSearchResponse().getSearchResponseId());
-         emitErrorEvent(searchResponse, null);
-         return;
+        eventPublisher.publishResponseProcessingErrorEvent(searchResponse.getSearchResponse(), null);
+        return;
       }
 
       var chunks = new ArrayList<String>();
@@ -100,7 +98,10 @@ public class ChunkSplitter {
       eventPublisher.publishEvent(event);
     } catch (Exception e) {
       log.warn("Error during splitting html", e);
-      emitErrorEvent(searchResponse, e.getMessage());
+      eventPublisher.publishResponseProcessingErrorEvent(
+        searchResponse.getSearchResponse(),
+        "Не удалось разрезать текст на чанки " + e.getMessage()
+      );
     }
 
   }
@@ -162,13 +163,5 @@ public class ChunkSplitter {
   private boolean isChunkIsNotFull(StringBuilder chunk, String text) {
     var chunkSize = fetchConfigProperties.getChunkSize();
     return chunk.length() + text.length() - CHUNK_GAP < chunkSize;
-  }
-
-  private void emitErrorEvent(SearchResponseDtoWithContent searchResponse, @Nullable String errorMessage) {
-    var errorEvent = new ResponseProcessingErrorEvent();
-    errorEvent.setSearchResponseId(searchResponse.getSearchResponse().getSearchResponseId());
-    errorEvent.setUrl(searchResponse.getSearchResponse().getUrl());
-    errorEvent.setMessage("Не удалось разрезать текст на чанки" + StringUtils.defaultIfEmpty(errorMessage, StringUtils.EMPTY));
-    eventPublisher.publishEvent(errorEvent);
   }
 }

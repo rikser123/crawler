@@ -6,13 +6,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.sax.BodyContentHandler;
-import org.springframework.context.ApplicationEventPublisher;
 import org.apache.tika.sax.boilerpipe.BoilerpipeContentHandler;
 import org.apache.tika.parser.html.JSoupParser;
 import org.springframework.stereotype.Service;
+import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishCleanContentEvent;
-import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -29,7 +28,7 @@ public class TextExtractor {
   private static final Executor executors = Executors.newVirtualThreadPerTaskExecutor();
   private static final Integer CONTENT_LENGTH_LIMIT = 1_000_000;
 
-  private final ApplicationEventPublisher eventPublisher;
+  private final EventPublisher eventPublisher;
 
   @PostConstruct
   void init() {
@@ -69,11 +68,10 @@ public class TextExtractor {
 
     } catch (Exception e) {
        log.warn("Error during clean html", e);
-       var errorEvent = new ResponseProcessingErrorEvent();
-        errorEvent.setSearchResponseId(searchResponse.getSearchResponse().getSearchResponseId());
-        errorEvent.setUrl(searchResponse.getSearchResponse().getUrl());
-        errorEvent.setMessage("Не удалось извлечь текст из контента " +e.getMessage());
-       eventPublisher.publishEvent(errorEvent);
+       eventPublisher.publishResponseProcessingErrorEvent(
+         searchResponse.getSearchResponse(),
+         "Не удалось извлечь текст из контента " +e.getMessage()
+       );
     }
   }
 }
