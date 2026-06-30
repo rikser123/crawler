@@ -81,7 +81,8 @@ fetch:
   max-download-attempt: ${MAX_DOWNLOAD_ATTEMPT:50}
   repeat-download-delay: ${REPEAT_DOWNLOAD_ATTEMPT:50}
   max-body-size: ${MAX_BODY_SIZE:512 000}
-  chunk-size: ${CHUNK_SIZE:700}
+  chunk-size: ${CHUNK_SIZE:2000}
+  word-overlap-count: ${WORD_OVERLAP_COUNT:200}
 
 kafka:
   scheduler-delay: PT10S

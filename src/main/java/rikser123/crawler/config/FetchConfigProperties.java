@@ -18,4 +18,5 @@ public class FetchConfigProperties {
   private int repeatDownloadDelay;
   private int maxBodySize;
   private int chunkSize;
+  private int wordOverlapCount;
 }

@@ -7,6 +7,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
+import rikser123.crawler.dto.SearchResponseDto;
 import rikser123.crawler.dto.SearchResponseDtoWithChunks;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishSplitChunksEvent;
@@ -29,7 +30,6 @@ public class ChunkSplitter {
   private static final String PARAGRAPH_BORDER = "\\n\\n+|\\n";
   private static final String SENTENCE_BORDER = "(?<=[.!?…])\\s+";
   private static final int CHUNK_GAP = 40;
-  private static final int WORD_OVERLAP_COUNT = 20;
 
   private final FetchConfigProperties fetchConfigProperties;
   private final EventPublisher eventPublisher;
@@ -54,16 +54,24 @@ public class ChunkSplitter {
 
   private void split(SearchResponseDtoWithContent searchResponse) {
     try {
+      var chunkSize = fetchConfigProperties.getChunkSize();
+      var overlapCount = fetchConfigProperties.getWordOverlapCount();
       var text = searchResponse.getContent();
+      var chunks = new ArrayList<String>();
+
       if (StringUtils.isEmpty(text)) {
         log.warn("Переданный тест пустой! {}", searchResponse.getSearchResponse().getSearchResponseId());
         eventPublisher.publishResponseProcessingErrorEvent(searchResponse.getSearchResponse(), null);
         return;
       }
 
-      var chunks = new ArrayList<String>();
+      if (text.length() < chunkSize + overlapCount) {
+        chunks.add(text);
+        publishFinishSplitChunksEvent(searchResponse.getSearchResponse(), chunks);
+        return;
+      }
+
       var paragraphs = text.split(PARAGRAPH_BORDER);
-      var chunkSize = fetchConfigProperties.getChunkSize();
 
       var currentChunk = new StringBuilder();
       var currentParagraphIndex = 0;
@@ -90,12 +98,7 @@ public class ChunkSplitter {
         chunks.add(currentChunk.toString());
       }
 
-      var event = new FinishSplitChunksEvent();
-      var eventDto = new SearchResponseDtoWithChunks();
-      eventDto.setSearchResponse(searchResponse.getSearchResponse());
-      eventDto.setChunks(chunks);
-      event.setDtoWithChunks(eventDto);
-      eventPublisher.publishEvent(event);
+      publishFinishSplitChunksEvent(searchResponse.getSearchResponse(), chunks);
     } catch (Exception e) {
       log.warn("Error during splitting html", e);
       eventPublisher.publishResponseProcessingErrorEvent(
@@ -103,7 +106,6 @@ public class ChunkSplitter {
         "Не удалось разрезать текст на чанки " + e.getMessage()
       );
     }
-
   }
 
   private StringBuilder splitSentences(String paragraph, StringBuilder currentChunk, List<String> chunks) {
@@ -128,6 +130,7 @@ public class ChunkSplitter {
   }
 
   private StringBuilder splitSentence(String sentence, StringBuilder currentChunk, List<String> chunks) {
+    var wordOverlapCount = fetchConfigProperties.getWordOverlapCount();
     var words = sentence.split(" ");
     var chunk = currentChunk;
 
@@ -138,8 +141,8 @@ public class ChunkSplitter {
         chunks.add(chunk.toString());
         var chunkWords = Arrays.stream(chunk.toString().strip().split(" ")).toList();
         chunk = new StringBuilder();
-        if (chunkWords.size() > WORD_OVERLAP_COUNT) {
-          var overlappedWords = chunkWords.subList(chunkWords.size() - 1 - WORD_OVERLAP_COUNT, chunkWords.size() - 1);
+        if (chunkWords.size() > wordOverlapCount) {
+          var overlappedWords = chunkWords.subList(chunkWords.size() - 1 - wordOverlapCount, chunkWords.size() - 1);
           for (var overlapped: overlappedWords) {
             addToChunk(chunk, overlapped);
           }
@@ -163,5 +166,14 @@ public class ChunkSplitter {
   private boolean isChunkIsNotFull(StringBuilder chunk, String text) {
     var chunkSize = fetchConfigProperties.getChunkSize();
     return chunk.length() + text.length() - CHUNK_GAP < chunkSize;
+  }
+
+  private void publishFinishSplitChunksEvent(SearchResponseDto searchResponseDto, List<String> chunks) {
+    var event = new FinishSplitChunksEvent();
+    var eventDto = new SearchResponseDtoWithChunks();
+    eventDto.setSearchResponse(searchResponseDto);
+    eventDto.setChunks(chunks);
+    event.setDtoWithChunks(eventDto);
+    eventPublisher.publishEvent(event);
   }
 }

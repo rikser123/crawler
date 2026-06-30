@@ -14,19 +14,18 @@ import rikser123.crawler.dto.event.FinishSplitChunksEvent;
 import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 import rikser123.crawler.mapper.SearchResponseMapper;
 
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class PipelineOrchestrator {
-  private static final Map<UUID, UserQueryDto> userQueryInProcessing = new HashMap<>();
-  private static final Map<UUID, SearchResponseDto> responsesQueryInProcessing = new HashMap<>();
+  private static final Map<UUID, UserQueryDto> userQueryInProcessing = new ConcurrentHashMap<>();
+  private static final Map<UUID, SearchResponseDto> responsesQueryInProcessing = new ConcurrentHashMap<>();
 
   private final Crawler crawler;
   private final TextExtractor textExtractor;
