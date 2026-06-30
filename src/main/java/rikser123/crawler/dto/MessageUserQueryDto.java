@@ -18,6 +18,9 @@ public class MessageUserQueryDto {
   @NotNull(message = "Параметр searchQueryId должен быть заполнен!")
   private UUID searchQueryId;
 
+  @NotNull(message = "Параметр queryId должен быть заполнен!")
+  private UUID queryText;
+
   @NotNull(message = "Параметр userId должен быть заполнен!")
   private UUID userId;
 

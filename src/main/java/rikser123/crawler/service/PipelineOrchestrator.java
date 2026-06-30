@@ -12,6 +12,7 @@ import rikser123.crawler.dto.event.FinishCleanContentEvent;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
 import rikser123.crawler.dto.event.FinishSplitChunksEvent;
 import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
+import rikser123.crawler.dto.event.SummaryEvent;
 import rikser123.crawler.mapper.SearchResponseMapper;
 
 import java.util.Collections;
@@ -30,6 +31,7 @@ public class PipelineOrchestrator {
   private final Crawler crawler;
   private final TextExtractor textExtractor;
   private final ChunkSplitter chunkSplitter;
+  private final Summariser summariser;
   private final SearchResponseMessageService searchResponseMessageService;
   private final SearchResponseMapper searchResponseMapper;
 
@@ -78,6 +80,11 @@ public class PipelineOrchestrator {
 
   @EventListener
   void finishSplitChunkEventListener(FinishSplitChunksEvent event) {
+    summariser.initSummarising(event.getDtoWithChunks());
+  }
+
+  @EventListener
+  void summaryEventListener(SummaryEvent summaryEvent) {
 
   }
 

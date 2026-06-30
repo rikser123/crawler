@@ -91,3 +91,7 @@ rest:
   connection-timeout: 5
   read-timeout: 10
 
+bothub:
+  token: ${BOTHUB_TOKEN}
+  url: ${BOTHUB_URL}
+

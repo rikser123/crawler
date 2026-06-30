@@ -7,7 +7,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 
 
 @SpringBootApplication
-@EnableFeignClients
+@EnableFeignClients(basePackages = "rikser123.crawler.feign")
 @Slf4j
 public class RikserCrawlerApplication {
   public static void main(String[] args) {

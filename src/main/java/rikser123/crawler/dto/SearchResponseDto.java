@@ -14,5 +14,6 @@ public class SearchResponseDto {
   private String url;
   private String domain;
   private UUID queryId;
+  private String queryText;
   private SearchResponseDtoStatus status;
 }
