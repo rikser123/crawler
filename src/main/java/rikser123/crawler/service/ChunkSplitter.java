@@ -1,6 +1,7 @@
 package rikser123.crawler.service;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -16,16 +17,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ChunkSplitter {
   private final BlockingQueue<SearchResponseDtoWithContent> queue = new LinkedBlockingQueue<>();
-  private final Executor executors = Executors.newVirtualThreadPerTaskExecutor();
+  private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
 
   private static final String PARAGRAPH_BORDER = "\\n\\n+|\\n";
   private static final String SENTENCE_BORDER = "(?<=[.!?…])\\s+";
@@ -43,9 +45,24 @@ public class ChunkSplitter {
           executors.execute(() -> split(request));
         }  catch (InterruptedException e) {
           Thread.currentThread().interrupt();
+          break;
         }
       }
     });
+  }
+
+  @PreDestroy
+  public void shutdown() {
+    log.info("Shutting down ChunkSplitter...");
+    executors.shutdown();
+    try {
+      if (!executors.awaitTermination(30, TimeUnit.SECONDS)) {
+        executors.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+      executors.shutdownNow();
+      Thread.currentThread().interrupt();
+    }
   }
 
   public void initSpliting(SearchResponseDtoWithContent responseDto) {

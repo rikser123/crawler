@@ -2,6 +2,7 @@ package rikser123.crawler.service;
 
 import crawlercommons.robots.SimpleRobotRulesParser;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -27,16 +28,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.DelayQueue;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 @RequiredArgsConstructor
 @Service
 @Slf4j
 public class Crawler {
-  private static final Executor executors = Executors.newVirtualThreadPerTaskExecutor();
+  private static final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
   private static final Random random = new Random();
   private static final Integer RANDOM_BOUND = 30;
 
@@ -58,6 +60,20 @@ public class Crawler {
 
     initThreadPool(queue, queueSemaphore);
     initThreadPool(delayQueue, delayQueueSemaphore);
+  }
+
+  @PreDestroy
+  public void shutdown() {
+    log.info("Shutting down Crawler...");
+    executors.shutdown();
+    try {
+      if (!executors.awaitTermination(30, TimeUnit.SECONDS)) {
+        executors.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+      executors.shutdownNow();
+      Thread.currentThread().interrupt();
+    }
   }
 
   public void initDownloading(SearchResponseDto resultDto) {
@@ -89,6 +105,7 @@ public class Crawler {
           eventPublisher.publishResponseProcessingErrorEvent(searchResponseDto, e.getMessage());
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
+          break;
         }
       }
     });

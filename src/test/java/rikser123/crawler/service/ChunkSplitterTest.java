@@ -12,7 +12,6 @@ import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.SearchResponseDto;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishSplitChunksEvent;
-import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
@@ -34,9 +33,6 @@ public class ChunkSplitterTest {
 
   @Captor
   private ArgumentCaptor<FinishSplitChunksEvent> eventCaptor;
-
-  @Captor
-  private ArgumentCaptor<ResponseProcessingErrorEvent> eventErrorCaptor;
 
   @BeforeEach
   void init() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {

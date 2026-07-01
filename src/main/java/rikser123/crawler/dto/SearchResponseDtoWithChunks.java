@@ -12,4 +12,5 @@ import java.util.List;
 public class SearchResponseDtoWithChunks {
   private SearchResponseDto searchResponse;
   private List<String> chunks;
+  private int attempt;
 }
