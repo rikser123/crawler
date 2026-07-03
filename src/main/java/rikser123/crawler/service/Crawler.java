@@ -92,18 +92,18 @@ public class Crawler {
   private <T extends  ProcessedSearchResponseDto>void initThreadPool(BlockingQueue<T> queue, Semaphore semaphore) {
     executors.execute(() -> {
       while (true) {
-        SearchResponseDto searchResponseDto = null;
         try {
           var request = queue.take();
-          searchResponseDto = request.getSearchResponse();
           executors.execute(() -> {
-            var content = downloadLinkContent(request, semaphore);
-            var requestWithContent = prepareRequestsWithContent(request, content);
-            publishFinishDownloadContentEvent(requestWithContent);
+            try {
+              var content = downloadLinkContent(request, semaphore);
+              var requestWithContent = prepareRequestsWithContent(request, content);
+              publishFinishDownloadContentEvent(requestWithContent);
+            } catch (IllegalStateException e) {
+              eventPublisher.publishResponseProcessingErrorEvent(request.getSearchResponse(), e.getMessage());
+            }
           });
-        } catch (IllegalStateException e) {
-          eventPublisher.publishResponseProcessingErrorEvent(searchResponseDto, e.getMessage());
-        } catch (InterruptedException e) {
+        }  catch (InterruptedException e) {
           Thread.currentThread().interrupt();
           break;
         }
@@ -164,13 +164,14 @@ public class Crawler {
     delayedProcess.setAttempt(requestDto.getAttempt() + 1);
 
     var randomPercent = random.nextInt(RANDOM_BOUND);
-    var delayTime = fetchProperties.getRepeatDownloadDelay() + (fetchProperties.getRepeatDownloadDelay() / 100 * randomPercent);
+    var repeatDownloadDelay = fetchProperties.getRepeatDownloadDelay();
+    var delayTime = repeatDownloadDelay + (repeatDownloadDelay / 100 * randomPercent);
     var sameDomainCount = delayQueue.stream()
       .filter(response -> response.getSearchResponse().getDomain().equals(requestDto.getSearchResponse().getDomain()))
       .count();
 
     if (sameDomainCount > 0) {
-      delayTime += fetchProperties.getRepeatDownloadDelay() * sameDomainCount;
+      delayTime += repeatDownloadDelay * sameDomainCount;
     }
 
     delayedProcess.setDelayInSeconds(delayTime);
