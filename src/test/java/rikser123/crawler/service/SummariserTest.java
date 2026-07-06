@@ -7,13 +7,10 @@ import org.mockito.Mock;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
-import rikser123.crawler.dto.BothubResponseDto;
 import rikser123.crawler.dto.SearchResponseDto;
 import rikser123.crawler.dto.SearchResponseDtoWithChunks;
-import rikser123.crawler.feign.BothubClient;
 
 import java.lang.reflect.InvocationTargetException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -34,7 +31,7 @@ public class SummariserTest {
   private EventPublisher eventPublisher;
 
   @Mock
-  private BothubClient bothubClient;
+  private BothubService bothubService;
 
   @BeforeEach
   void init() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
@@ -44,7 +41,7 @@ public class SummariserTest {
     fetchConfig.setQueueLimit(5);
     fetchConfig.setTimeoutQueueLimit(5);
 
-    summariser = new Summariser(eventPublisher, bothubClient, fetchConfig);
+    summariser = new Summariser(eventPublisher, fetchConfig, bothubService);
 
     var initMethod = Summariser.class.getDeclaredMethod("init");
     initMethod.setAccessible(true);
@@ -61,21 +58,18 @@ public class SummariserTest {
     dto.setAttempt(0);
     dto.setChunks(List.of("Эй вы там", "Текст запроса", "Текст ответа"));
 
-    var bothubResponse = new BothubResponseDto();
-    bothubResponse.setOutputText("outputText");
-
-    when(bothubClient.getResponses(any(), any())).thenReturn(bothubResponse);
+    when(bothubService.getSummary(any())).thenReturn("outputText");
 
     summariser.initSummarising(dto);
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
       .untilAsserted(() -> {
-        verify(bothubClient, atLeastOnce()).getResponses(argThat(arg -> {
-          assertThat(arg.getInput()).contains("Текст запроса");
-          assertThat(arg.getInput()).contains("Текст ответа");
+        verify(bothubService, atLeastOnce()).getSummary(argThat(arg -> {
+          assertThat(arg).contains("Текст запроса");
+          assertThat(arg).contains("Текст ответа");
           return true;
-        }), any());
+        }));
       });
   }
 
@@ -88,21 +82,18 @@ public class SummariserTest {
     dto.setAttempt(0);
     dto.setChunks(List.of("Эй вы там", "Текст запроса"));
 
-    var bothubResponse = new BothubResponseDto();
-    bothubResponse.setOutputText("outputText");
-
-    when(bothubClient.getResponses(any(), any())).thenReturn(bothubResponse);
+    when(bothubService.getSummary(any())).thenReturn("outputText");
 
     summariser.initSummarising(dto);
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
       .untilAsserted(() -> {
-        verify(bothubClient, atLeastOnce()).getResponses(argThat(arg -> {
-          assertThat(arg.getInput()).contains("Эй вы там");
-          assertThat(arg.getInput()).contains("Текст запроса");
+        verify(bothubService, atLeastOnce()).getSummary(argThat(arg -> {
+          assertThat(arg).contains("Эй вы там");
+          assertThat(arg).contains("Текст запроса");
           return true;
-        }), any());
+        }));
       });
   }
 
@@ -133,11 +124,7 @@ public class SummariserTest {
     dto.setAttempt(0);
     dto.setChunks(List.of("Эй вы там", "Эй вы там"));
 
-    var bothubResponse = new BothubResponseDto();
-    bothubResponse.setOutputText("outputText");
-    bothubResponse.setError(new HashMap<>());
-
-    when(bothubClient.getResponses(any(), any())).thenReturn(bothubResponse);
+    when(bothubService.getSummary(any())).thenThrow(new IllegalStateException("Не удалось получить данные из Bothub"));
 
     summariser.initSummarising(dto);
 

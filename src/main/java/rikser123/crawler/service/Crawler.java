@@ -38,14 +38,14 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Slf4j
 public class Crawler {
-  private static final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
   private static final Random random = new Random();
   private static final Integer RANDOM_BOUND = 30;
 
-  private static final BlockingQueue<ProcessedSearchResponseDto> queue = new LinkedBlockingQueue<>();
-  private static final DelayQueue<DelayedProcessedSearchResponseDto> delayQueue = new DelayQueue<>();
-  private static Semaphore queueSemaphore;
-  private static Semaphore delayQueueSemaphore;
+  private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
+  private final BlockingQueue<ProcessedSearchResponseDto> queue = new LinkedBlockingQueue<>();
+  private final DelayQueue<DelayedProcessedSearchResponseDto> delayQueue = new DelayQueue<>();
+  private Semaphore queueSemaphore;
+  private Semaphore delayQueueSemaphore;
 
   private final FetchConfigProperties fetchProperties;
   private final CrawlerResponseExtractor crawlerResponseExtractor;

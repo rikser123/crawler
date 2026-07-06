@@ -14,7 +14,8 @@ public interface SearchResponseMapper {
   @AfterMapping
   default void afterFromMessage(
     MessageUserQueryDto.SearchResponse searchResponse,
-    @MappingTarget SearchResponseDto searchResponseDto) {
+    @MappingTarget SearchResponseDto searchResponseDto
+  ) {
     searchResponseDto.setStatus(SearchResponseDtoStatus.CREATED);
   }
 }

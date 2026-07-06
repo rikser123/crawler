@@ -26,9 +26,10 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @RequiredArgsConstructor
 public class TextExtractor {
-  private static final BlockingQueue<SearchResponseDtoWithContent> queue = new LinkedBlockingQueue<>();
-  private static final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
   private static final Integer CONTENT_LENGTH_LIMIT = 1_000_000;
+
+  private final BlockingQueue<SearchResponseDtoWithContent> queue = new LinkedBlockingQueue<>();
+  private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
 
   private final EventPublisher eventPublisher;
 

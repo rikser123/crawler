@@ -15,9 +15,8 @@ import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 import rikser123.crawler.dto.event.SummaryEvent;
 import rikser123.crawler.mapper.SearchResponseMapper;
 
-import java.util.Collections;
+import java.util.Collection;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,8 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 @Slf4j
 public class PipelineOrchestrator {
-  private static final Map<UUID, UserQueryDto> userQueryInProcessing = new ConcurrentHashMap<>();
-  private static final Map<UUID, SearchResponseDto> responsesQueryInProcessing = new ConcurrentHashMap<>();
+  private final Map<UUID, UserQueryDto> userQueryInProcessing = new ConcurrentHashMap<>();
+  private final Map<UUID, SearchResponseDto> responsesQueryInProcessing = new ConcurrentHashMap<>();
 
   private final Crawler crawler;
   private final TextExtractor textExtractor;
@@ -52,20 +51,16 @@ public class PipelineOrchestrator {
 
     userQueryInProcessing.put(queryDto.getSearchQueryId(), userQueryDto);
 
-    var activeResponses = responses
-      .stream()
-      .filter(response ->
-        responsesQueryInProcessing
-          .values()
-          .stream()
-          .anyMatch(responseQuery -> responseQuery.getUrl().equals(response.getUrl())))
-      .toList();
+    responses.forEach(response -> {
+      var isResponseInProcessing = responsesQueryInProcessing
+        .values()
+        .stream()
+        .anyMatch(responseQuery -> responseQuery.getUrl().equals(response.getUrl()));
 
-    if (!activeResponses.isEmpty()) {
-      activeResponses.forEach(response -> {
+      if (!isResponseInProcessing) {
         crawler.initDownloading(response);
-      });
-    }
+      }
+    });
   }
 
   @EventListener
@@ -85,33 +80,49 @@ public class PipelineOrchestrator {
 
   @EventListener
   void summaryEventListener(SummaryEvent summaryEvent) {
+    var dto = summaryEvent.getSearchDto();
+    setResponseQueryStatus(dto.getSearchResponse(), SearchResponseDtoStatus.PROCESSED);
 
+    var processedUserQuery = userQueryInProcessing
+      .values()
+      .stream()
+      .filter(userQuery ->
+        userQuery.getSearchResponses()
+          .stream()
+          .allMatch(response -> response.getStatus() == SearchResponseDtoStatus.PROCESSED)
+      ).peek(userQuery -> {
+        userQueryInProcessing.remove(userQuery.getSearchQueryId());
+      }).toList();
+    // TODO отправлямем в дипсик
   }
 
   @EventListener
   void processingErrorListener(ResponseProcessingErrorEvent event) {
     var errorMessage = event.getMessage();
     var url = event.getUrl();
+    // TODO общее сообщение об ошибочном статусе запроса, если все ответы ошибочны
     var sameProcessingResponse = responsesQueryInProcessing
       .values()
       .stream()
       .filter(response -> response.getUrl().equals(url))
       .peek(response -> {
-        var responseId = response.getSearchResponseId();
-        var queryId = response.getQueryId();
-        responsesQueryInProcessing.remove(responseId);
-
-       Optional.ofNullable(userQueryInProcessing.get(queryId))
-         .map(UserQueryDto::getSearchResponses)
-         .orElse(Collections.emptyList())
-        .stream()
-        .filter(res -> response.getSearchResponseId().equals(responseId))
-        .findFirst()
-        .ifPresent(resp -> resp.setStatus(SearchResponseDtoStatus.ERROR));
+        setResponseQueryStatus(response, SearchResponseDtoStatus.ERROR);
       }).map(resp ->
         searchResponseMessageService.createOutboxRequestError(resp.getSearchResponseId(), errorMessage))
       .toList();
 
     searchResponseMessageService.saveAll(sameProcessingResponse);
+  }
+
+  private void setResponseQueryStatus(SearchResponseDto response, SearchResponseDtoStatus status) {
+    var responseId = response.getSearchResponseId();
+    responsesQueryInProcessing.remove(responseId);
+
+    userQueryInProcessing.values()
+      .stream()
+     .map(UserQueryDto::getSearchResponses)
+     .flatMap(Collection::stream)
+     .filter(responseQuery -> responseQuery.getUrl().equals(response.getUrl()))
+     .forEach(responseQuery -> response.setStatus(status));
   }
 }

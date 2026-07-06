@@ -94,4 +94,5 @@ rest:
 bothub:
   token: ${BOTHUB_TOKEN}
   url: ${BOTHUB_URL}
+  summary_model: ${BOTHUD_SUMMARY_MODEL:deepseek-v4-flash}
 

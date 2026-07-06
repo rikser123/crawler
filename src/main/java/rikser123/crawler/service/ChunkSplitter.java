@@ -26,12 +26,12 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @RequiredArgsConstructor
 public class ChunkSplitter {
-  private final BlockingQueue<SearchResponseDtoWithContent> queue = new LinkedBlockingQueue<>();
-  private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
-
   private static final String PARAGRAPH_BORDER = "\\n\\n+|\\n";
   private static final String SENTENCE_BORDER = "(?<=[.!?…])\\s+";
   private static final int CHUNK_GAP = 40;
+
+  private final BlockingQueue<SearchResponseDtoWithContent> queue = new LinkedBlockingQueue<>();
+  private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
 
   private final FetchConfigProperties fetchConfigProperties;
   private final EventPublisher eventPublisher;

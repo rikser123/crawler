@@ -24,11 +24,9 @@ import rikser123.crawler.dto.SearchResponseDto;
 import rikser123.crawler.dto.SearchResponseDtoWithChunks;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.SummaryEvent;
-import rikser123.crawler.feign.BothubClient;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.ExecutorService;
@@ -41,21 +39,17 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 @Slf4j
 public class Summariser {
-  private static final BlockingQueue<SearchResponseDtoWithChunks> queue = new LinkedBlockingQueue<>();
-  private static final DelayQueue<DelayedSearchResponseDtoWithChunks> delayQueue = new DelayQueue<>();
-  private static Semaphore queueSemaphore;
-  private static Semaphore delayQueueSemaphore;
-  private static final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
-
   private static final int CHUNKS_COUNT = 2;
-  private static final String SUMMARY_MODEL = "deepseek-v4-flash";
+
+  private final BlockingQueue<SearchResponseDtoWithChunks> queue = new LinkedBlockingQueue<>();
+  private final DelayQueue<DelayedSearchResponseDtoWithChunks> delayQueue = new DelayQueue<>();
+  private Semaphore queueSemaphore;
+  private Semaphore delayQueueSemaphore;
+  private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
 
   private final EventPublisher eventPublisher;
-  private final BothubClient bothubClient;
   private final FetchConfigProperties fetchProperties;
-
-  @Value("${bothub.token}")
-  private String bothubToken;
+  private final BothubService bothubService;
 
   @PostConstruct
   void init() {
@@ -93,7 +87,7 @@ public class Summariser {
       semaphore.acquire();
       acquired = true;
       var relevantChunks = getRelevantChunks(searchResponseDtoWithChunks);
-      var summary = getSummary(relevantChunks);
+      var summary = bothubService.getSummary(relevantChunks);
       publishSummaryEvent(searchResponseDtoWithChunks.getSearchResponse(), summary);
     } catch (IllegalStateException e) {
       var delay = fetchProperties.getRepeatDownloadDelay();
@@ -169,31 +163,6 @@ public class Summariser {
       log.warn("Не удалось определить релевантные чанки", e);
       throw new IllegalStateException("Не удалось определить релевантные чанки");
     }
-  }
-
-  private String getSummary(List<String> chunks) {
-    var requestDto = new BothubRequestDto();
-    requestDto.setModel(SUMMARY_MODEL);
-
-    var prompt = String.format("""
-      Инструкция: Ты — профессиональный анализатор текста. Составь краткий структурированный конспект статьи для дальнейшего использования в аналитической системе.
-      Задача: Извлеки из текста всю значимую информацию и представь её в виде краткого, фактологического конспекта. Конспект должен быть максимально информативным, но при этом занимать не более 500–700 слов.
-      Структура конспекта (строго соблюдай):
-      Основная тема: 1 предложение, формулирующее главную тему статьи.
-      Ключевые тезисы: список из 4–7 пунктов, содержащих самые важные утверждения, факты, цифры, выводы. Каждый пункт — 1–2 предложения. Используй маркированный список.
-      Детали: (если есть) важные нюансы, уточнения, исключения, которые дополняют основные тезисы. Кратко, 2–3 предложения.
-      Источники и данные: если в статье есть ссылки на исследования, даты, имена, статистика — обязательно укажи.
-      Важно: Пиши только по тексту. Никаких своих оценок, обобщений или домыслов. Стиль — нейтральный, деловой, без воды.
-      Текст статьи:
-      %s
-      """, String.join(", ", chunks));
-    requestDto.setInput(prompt);
-    var response = bothubClient.getResponses(requestDto, "Bearer " + bothubToken);
-    if (!Objects.isNull(response.getError())) {
-      log.warn("Не удалось получить ответ от {}", SUMMARY_MODEL);
-      throw new IllegalStateException("Не удалось определить релевантные чанки");
-    }
-    return response.getOutputText();
   }
 
   private void publishSummaryEvent(SearchResponseDto searchResponseDto, String summary) {
