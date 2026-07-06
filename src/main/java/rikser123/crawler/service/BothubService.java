@@ -22,6 +22,9 @@ public class BothubService {
   @Value("${bothub.summary_model}")
   private String bothubSummaryModel;
 
+  @Value("${bothub.analysis_model}")
+  private String bothubAnalysisModel;
+
   public String getSummary(List<String> chunks) {
     var prompt = String.format("""
       Инструкция: Ты — профессиональный анализатор текста. Составь краткий структурированный конспект статьи для дальнейшего использования в аналитической системе.
@@ -36,6 +39,37 @@ public class BothubService {
       %s
       """, String.join(", ", chunks));
     return fetchModelRequest(prompt, bothubSummaryModel);
+  }
+
+  public String getQueryAnalysis(String userQuery, List<String> summaries) {
+    var promt = String.format("""
+      Проанализируй запрос пользователя и пересказы сайтов из выдачи Яндекса.
+            
+      Запрос: %s
+            
+      Источники:
+      %s
+            
+      Задачи:
+      1. Выдели ключевую информацию из всех источников
+      2. Объедини факты в единый связный ответ
+      3. Если в источниках есть расхождения — возьми наиболее логичную/подтвержденную версию (или укажи, что мнения различаются, но не акцентируй на этом внимание)
+      4. Дай структурированный ответ, который полностью закрывает запрос пользователя
+            
+      Формат ответа:
+      ## Краткий ответ
+      [1-2 предложения]
+            
+      ## Подробно
+      [Развернутый ответ со всей важной информацией]
+            
+      ## Дополнительно (если нужно)
+      [Нюансы, советы, важные детали]
+            
+      ## Откуда информация
+      [Краткое указание источников]
+      """, userQuery, String.join(", ", summaries));
+    return fetchModelRequest(promt, bothubAnalysisModel);
   }
 
   private String fetchModelRequest(String prompt, String model) {

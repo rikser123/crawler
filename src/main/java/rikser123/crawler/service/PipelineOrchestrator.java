@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import rikser123.crawler.dto.SearchResponseDto;
 import rikser123.crawler.dto.MessageUserQueryDto;
 import rikser123.crawler.dto.SearchResponseDtoStatus;
+import rikser123.crawler.dto.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.UserQueryDto;
 import rikser123.crawler.dto.event.FinishCleanContentEvent;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
@@ -16,6 +17,7 @@ import rikser123.crawler.dto.event.SummaryEvent;
 import rikser123.crawler.mapper.SearchResponseMapper;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,6 +33,7 @@ public class PipelineOrchestrator {
   private final TextExtractor textExtractor;
   private final ChunkSplitter chunkSplitter;
   private final Summariser summariser;
+  private final QueryAnalizer queryAnalizer;
   private final SearchResponseMessageService searchResponseMessageService;
   private final SearchResponseMapper searchResponseMapper;
 
@@ -41,13 +44,19 @@ public class PipelineOrchestrator {
       .toList();
 
     responses.forEach(response -> {
-      response.setQueryId(queryDto.getSearchQueryId());
+      response.setQueryId(response.getSearchResponseId());
     });
 
     var userQueryDto = new UserQueryDto();
-    userQueryDto.setSearchResponses(responses);
+    userQueryDto.setSearchResponses(responses.stream().map(response -> {
+      var processedResponse = new SearchResponseDtoWithContent();
+      processedResponse.setSearchResponse(response);
+      processedResponse.setStatus(SearchResponseDtoStatus.CREATED);
+      return processedResponse;
+    }).toList());
     userQueryDto.setSearchQueryId(queryDto.getSearchQueryId());
     userQueryDto.setUserId(queryDto.getUserId());
+    userQueryDto.setQueryText(queryDto.getQueryText());
 
     userQueryInProcessing.put(queryDto.getSearchQueryId(), userQueryDto);
 
@@ -81,7 +90,8 @@ public class PipelineOrchestrator {
   @EventListener
   void summaryEventListener(SummaryEvent summaryEvent) {
     var dto = summaryEvent.getSearchDto();
-    setResponseQueryStatus(dto.getSearchResponse(), SearchResponseDtoStatus.PROCESSED);
+    var responses = getAllResponsesWithUrl(dto.getSearchResponse().getUrl());
+    setResponseQueryStatus(responses, SearchResponseDtoStatus.PROCESSED);
 
     var processedUserQuery = userQueryInProcessing
       .values()
@@ -89,40 +99,45 @@ public class PipelineOrchestrator {
       .filter(userQuery ->
         userQuery.getSearchResponses()
           .stream()
-          .allMatch(response -> response.getStatus() == SearchResponseDtoStatus.PROCESSED)
-      ).peek(userQuery -> {
-        userQueryInProcessing.remove(userQuery.getSearchQueryId());
+          .allMatch(response -> {
+            var status = response.getStatus();
+            return status == SearchResponseDtoStatus.PROCESSED || status == SearchResponseDtoStatus.ERROR;
+          }
+      )).peek(query -> {
+        userQueryInProcessing.remove(query.getSearchQueryId());
       }).toList();
-    // TODO отправлямем в дипсик
+    processedUserQuery.forEach(query -> {
+      queryAnalizer.initAnalysis(query);
+    });
   }
 
   @EventListener
   void processingErrorListener(ResponseProcessingErrorEvent event) {
     var errorMessage = event.getMessage();
     var url = event.getUrl();
-    // TODO общее сообщение об ошибочном статусе запроса, если все ответы ошибочны
-    var sameProcessingResponse = responsesQueryInProcessing
-      .values()
-      .stream()
-      .filter(response -> response.getUrl().equals(url))
-      .peek(response -> {
-        setResponseQueryStatus(response, SearchResponseDtoStatus.ERROR);
-      }).map(resp ->
-        searchResponseMessageService.createOutboxRequestError(resp.getSearchResponseId(), errorMessage))
-      .toList();
 
-    searchResponseMessageService.saveAll(sameProcessingResponse);
+    var responses = getAllResponsesWithUrl(url);
+    setResponseQueryStatus(responses, SearchResponseDtoStatus.ERROR);
+    var outboxMessages = responses.stream().map(response ->
+      searchResponseMessageService.createOutboxRequestError(response.getSearchResponse().getSearchResponseId(), errorMessage)
+    ).toList();
+    searchResponseMessageService.saveAll(outboxMessages);
+    // TODO общее сообщение об ошибочном статусе запроса, если все ответы ошибочны
   }
 
-  private void setResponseQueryStatus(SearchResponseDto response, SearchResponseDtoStatus status) {
-    var responseId = response.getSearchResponseId();
-    responsesQueryInProcessing.remove(responseId);
-
-    userQueryInProcessing.values()
+  private List<SearchResponseDtoWithContent> getAllResponsesWithUrl(String url) {
+    return userQueryInProcessing.values()
       .stream()
-     .map(UserQueryDto::getSearchResponses)
-     .flatMap(Collection::stream)
-     .filter(responseQuery -> responseQuery.getUrl().equals(response.getUrl()))
-     .forEach(responseQuery -> response.setStatus(status));
+      .map(UserQueryDto::getSearchResponses)
+      .flatMap(Collection::stream)
+      .filter(responseQuery -> responseQuery.getSearchResponse().getUrl().equals(url))
+      .toList();
+  }
+
+  private void setResponseQueryStatus(List<SearchResponseDtoWithContent> queries, SearchResponseDtoStatus status) {
+    queries.forEach(query -> {
+      responsesQueryInProcessing.remove(query.getSearchResponse().getSearchResponseId());
+      query.setStatus(status);
+    });
   }
 }

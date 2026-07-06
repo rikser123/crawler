@@ -13,5 +13,6 @@ import java.util.UUID;
 public class UserQueryDto {
   private UUID searchQueryId;
   private UUID userId;
-  private List<SearchResponseDto> searchResponses;
+  private String queryText;
+  private List<SearchResponseDtoWithContent> searchResponses;
 }

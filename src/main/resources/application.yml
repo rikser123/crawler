@@ -95,4 +95,5 @@ bothub:
   token: ${BOTHUB_TOKEN}
   url: ${BOTHUB_URL}
   summary_model: ${BOTHUD_SUMMARY_MODEL:deepseek-v4-flash}
+  analysis_model: ${BOTHUD_ANALYISIS_MODEL:deepseek-v4-pro}
 

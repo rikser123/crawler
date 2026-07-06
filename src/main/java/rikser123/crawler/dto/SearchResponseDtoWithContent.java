@@ -10,4 +10,5 @@ import lombok.NoArgsConstructor;
 public class SearchResponseDtoWithContent {
   private SearchResponseDto searchResponse;
   private String content;
+  private SearchResponseDtoStatus status;
 }
