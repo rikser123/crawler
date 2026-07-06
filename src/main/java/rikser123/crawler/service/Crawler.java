@@ -81,7 +81,10 @@ public class Crawler {
     requestDto.setAttempt(0);
     requestDto.setSearchResponse(resultDto);
 
-    var sameDomainCount = queue.stream().filter(response -> response.getSearchResponse().getDomain().equals(resultDto.getDomain())).count();
+    var sameDomainCount = queue.stream()
+      .filter(response ->
+        response.getSearchResponse().getDomain().equals(resultDto.getDomain()))
+      .count();
     if (sameDomainCount > 0) {
       addDelayProcess(requestDto);
     } else {

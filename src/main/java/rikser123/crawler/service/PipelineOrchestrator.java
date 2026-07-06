@@ -14,7 +14,7 @@ import rikser123.crawler.dto.event.FinishDownloadContentEvent;
 import rikser123.crawler.dto.event.FinishSplitChunksEvent;
 import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 import rikser123.crawler.dto.event.SummaryEvent;
-import rikser123.crawler.mapper.SearchResponseMapper;
+import rikser123.crawler.mapper.UserQueryMapper;
 
 import java.util.Collection;
 import java.util.List;
@@ -35,30 +35,16 @@ public class PipelineOrchestrator {
   private final Summariser summariser;
   private final QueryAnalizer queryAnalizer;
   private final SearchResponseMessageService searchResponseMessageService;
-  private final SearchResponseMapper searchResponseMapper;
+  private final UserQueryMapper userQueryMapper;
 
-  public void initResponseProcessing(MessageUserQueryDto queryDto) {
-    var responses = queryDto.getSearchResponses()
+  public void initResponseProcessing(MessageUserQueryDto messageDto) {
+   var userQueryDto = userQueryMapper.mapMessageToDto(messageDto);
+
+    userQueryInProcessing.put(userQueryDto.getSearchQueryId(), userQueryDto);
+    var responses = userQueryDto.getSearchResponses()
       .stream()
-      .map(searchResponseMapper::mapToDtoFromMessage)
+      .map(SearchResponseDtoWithContent::getSearchResponse)
       .toList();
-
-    responses.forEach(response -> {
-      response.setQueryId(response.getSearchResponseId());
-    });
-
-    var userQueryDto = new UserQueryDto();
-    userQueryDto.setSearchResponses(responses.stream().map(response -> {
-      var processedResponse = new SearchResponseDtoWithContent();
-      processedResponse.setSearchResponse(response);
-      processedResponse.setStatus(SearchResponseDtoStatus.CREATED);
-      return processedResponse;
-    }).toList());
-    userQueryDto.setSearchQueryId(queryDto.getSearchQueryId());
-    userQueryDto.setUserId(queryDto.getUserId());
-    userQueryDto.setQueryText(queryDto.getQueryText());
-
-    userQueryInProcessing.put(queryDto.getSearchQueryId(), userQueryDto);
 
     responses.forEach(response -> {
       var isResponseInProcessing = responsesQueryInProcessing
@@ -92,6 +78,9 @@ public class PipelineOrchestrator {
     var dto = summaryEvent.getSearchDto();
     var responses = getAllResponsesWithUrl(dto.getSearchResponse().getUrl());
     setResponseQueryStatus(responses, SearchResponseDtoStatus.PROCESSED);
+    responses.forEach(response -> {
+      response.setContent(dto.getContent());
+    });
 
     var processedUserQuery = userQueryInProcessing
       .values()
