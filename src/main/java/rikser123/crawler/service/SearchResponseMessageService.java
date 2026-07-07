@@ -4,7 +4,8 @@ import org.springframework.stereotype.Service;
 import rikser123.bundle.repository.entity.OutboxMessageStatus;
 import rikser123.bundle.service.OutboxMessageService;
 import rikser123.bundle.service.StatusMatrix;
-import rikser123.crawler.dto.MessageQueryResultDto;
+import rikser123.crawler.dto.MessageError;
+import rikser123.crawler.dto.MessageQueryResponseDtoOutbox;
 import rikser123.crawler.dto.SearchResponseStatus;
 import rikser123.crawler.repository.SearchResponseOutboxMessageRepository;
 import rikser123.crawler.repository.entity.SearchResponseOutboxMessage;
@@ -21,11 +22,11 @@ public class SearchResponseMessageService extends OutboxMessageService<SearchRes
   }
 
   public SearchResponseOutboxMessage createOutboxRequestError(UUID requestResultId, String message) {
-    var messageDto = new MessageQueryResultDto();
+    var messageDto = new MessageQueryResponseDtoOutbox();
     messageDto.setSearchResponseId(requestResultId);
     messageDto.setStatus(SearchResponseStatus.FAILED);
 
-    var error = new MessageQueryResultDto.MessageError();
+    var error = new MessageError();
     error.setMessage(message);
     messageDto.setError(error);
 

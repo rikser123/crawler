@@ -8,17 +8,21 @@ import rikser123.crawler.dto.SearchResponseDto;
 import rikser123.crawler.dto.MessageUserQueryDto;
 import rikser123.crawler.dto.SearchResponseDtoStatus;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.UserQueryAnalysisDto;
 import rikser123.crawler.dto.UserQueryDto;
+import rikser123.crawler.dto.event.FinishAnalysisEvent;
 import rikser123.crawler.dto.event.FinishCleanContentEvent;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
 import rikser123.crawler.dto.event.FinishSplitChunksEvent;
 import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 import rikser123.crawler.dto.event.SummaryEvent;
 import rikser123.crawler.mapper.UserQueryMapper;
+import rikser123.crawler.repository.entity.SearchQueryOutboxMessage;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -36,6 +40,7 @@ public class PipelineOrchestrator {
   private final QueryAnalizer queryAnalizer;
   private final SearchResponseMessageService searchResponseMessageService;
   private final UserQueryMapper userQueryMapper;
+  private final SearchQueryMessageService searchQueryMessageService;
 
   public void initResponseProcessing(MessageUserQueryDto messageDto) {
    var userQueryDto = userQueryMapper.mapMessageToDto(messageDto);
@@ -101,6 +106,20 @@ public class PipelineOrchestrator {
   }
 
   @EventListener
+  void finishAnalysisEventListener(FinishAnalysisEvent event) {
+    var dto = event.getDto();
+    userQueryInProcessing.remove(dto.getSearchQueryId());
+    SearchQueryOutboxMessage message;
+
+    if (!Objects.isNull(dto.getError())) {
+      message = searchQueryMessageService.createQueryOutboxErrorMessage(dto, dto.getError().getMessage());
+    } else {
+      message = searchQueryMessageService.createQueryOutboxSuccessMessage(dto);
+    }
+    searchQueryMessageService.save(message);
+  }
+
+  @EventListener
   void processingErrorListener(ResponseProcessingErrorEvent event) {
     var errorMessage = event.getMessage();
     var url = event.getUrl();
@@ -111,7 +130,23 @@ public class PipelineOrchestrator {
       searchResponseMessageService.createOutboxRequestError(response.getSearchResponse().getSearchResponseId(), errorMessage)
     ).toList();
     searchResponseMessageService.saveAll(outboxMessages);
-    // TODO общее сообщение об ошибочном статусе запроса, если все ответы ошибочны
+
+    var failedQueries = userQueryInProcessing
+      .values()
+      .stream()
+      .filter(query ->
+        query.getSearchResponses().stream().allMatch(response -> response.getStatus() == SearchResponseDtoStatus.ERROR)
+      ).toList();
+
+    failedQueries.forEach(query -> {
+      userQueryInProcessing.remove(query.getSearchQueryId());
+      var analysisDto = new UserQueryAnalysisDto();
+      analysisDto.setUserId(query.getUserId());
+      analysisDto.setSearchQueryId(query.getSearchQueryId());
+
+      searchQueryMessageService.createQueryOutboxErrorMessage(analysisDto, "Обработка всех ответов от яндекса завершился ошибкой!");
+    });
+
   }
 
   private List<SearchResponseDtoWithContent> getAllResponsesWithUrl(String url) {

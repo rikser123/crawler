@@ -19,22 +19,22 @@ import static rikser123.crawler.config.KafkaTopicConfig.QUERY_RESULT_TOPIC;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class RequestResultStatusProducer {
+public class QueryResultProducer {
   private final KafkaTemplate<String, String> kafkaTemplate;
   private final ObjectMapper objectMapper;
   private final SearchResponseMessageService searchResponseMessageService;
 
   @SneakyThrows
-  public CompletableFuture<SendResult<String, String>> send(SearchResponseOutboxMessage kafkaRequestMessage) {
-    var dto = kafkaRequestMessage.getDto();
+  public CompletableFuture<SendResult<String, String>> send(SearchResponseOutboxMessage kafkaMessage) {
+    var dto = kafkaMessage.getDto();
     var message = objectMapper.writeValueAsString(dto);
 
     return kafkaTemplate.send(QUERY_RESULT_TOPIC, message).whenComplete((result, error) -> {
       if (!Objects.isNull(result)) {
-        log.info("message successfully send {}", kafkaRequestMessage.getId());
-        searchResponseMessageService.changeStatus(kafkaRequestMessage, OutboxMessageStatus.SENT);
+        log.info("message successfully send {} in {}", kafkaMessage.getId(), QUERY_RESULT_TOPIC);
+        searchResponseMessageService.changeStatus(kafkaMessage, OutboxMessageStatus.SENT);
       } else if (!Objects.isNull(error)) {
-        log.warn("message fail send {}", kafkaRequestMessage.getId());
+        log.warn("message fail send {} in {}", kafkaMessage.getId(), QUERY_RESULT_TOPIC);
       }
     });
   }

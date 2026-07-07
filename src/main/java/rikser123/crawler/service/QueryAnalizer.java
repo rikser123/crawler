@@ -1,13 +1,19 @@
 package rikser123.crawler.service;
 
+import jakarta.annotation.Nullable;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
+import rikser123.crawler.dto.MessageError;
 import rikser123.crawler.dto.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.UserQueryAnalysisDto;
 import rikser123.crawler.dto.UserQueryDto;
+import rikser123.crawler.dto.event.FinishAnalysisEvent;
 
 
 import java.util.concurrent.BlockingQueue;
@@ -27,6 +33,7 @@ public class QueryAnalizer {
   private Semaphore queueSemaphore;
   private final FetchConfigProperties fetchConfigProperties;
   private final BothubService bothubService;
+  private final EventPublisher eventPublisher;
 
   @PostConstruct
   void init() {
@@ -71,17 +78,34 @@ public class QueryAnalizer {
         .stream()
         .map(SearchResponseDtoWithContent::getContent)
         .toList();
-      log.info("summ {}", summaries);
-
       var response = bothubService.getQueryAnalysis(userQuery, summaries);
-      // TODO ответ в оркестратор с успехом всего квери
+      var event = createEvent(request, response, null);
+      eventPublisher.publishEvent(event);
     } catch (IllegalStateException exception) {
-      // TODO ответ в очередь с целым квери с ошибкой сообщение в оркестратор
+      log.warn("Не удалось получить анализ данных от модели", exception);
+      var event = createEvent(request, null, "Не удалось получить анализ данных от модели");
+      eventPublisher.publishEvent(event);
     }
     catch (InterruptedException exception) {
       Thread.currentThread().interrupt();
     } finally {
       queueSemaphore.release();
     }
+  }
+
+  private FinishAnalysisEvent createEvent(UserQueryDto request, @Nullable String analysis, @Nullable String errorMessage) {
+    var event = new FinishAnalysisEvent();
+    var dto = new UserQueryAnalysisDto();
+    dto.setUserId(request.getUserId());
+    dto.setSearchQueryId(request.getSearchQueryId());
+    dto.setAnalysis(analysis);
+
+    if (StringUtils.isNotEmpty(errorMessage)) {
+      var error = new MessageError();
+      error.setMessage(errorMessage);
+      dto.setError(error);
+    }
+    event.setDto(dto);
+    return event;
   }
 }

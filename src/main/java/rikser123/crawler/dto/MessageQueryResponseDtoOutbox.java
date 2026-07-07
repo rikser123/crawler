@@ -9,16 +9,8 @@ import java.util.UUID;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class MessageQueryResultDto {
+public class MessageQueryResponseDtoOutbox {
   private UUID searchResponseId;
   private SearchResponseStatus status;
   private MessageError error;
-
-  @Data
-  @AllArgsConstructor
-  @NoArgsConstructor
-  public static class MessageError {
-    private String message;
-    private String code;
-  }
 }

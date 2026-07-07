@@ -6,38 +6,37 @@ import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import rikser123.bundle.repository.entity.OutboxMessageStatus;
-import rikser123.crawler.producer.QueryResultProducer;
-import rikser123.crawler.service.SearchResponseMessageService;
+import rikser123.crawler.producer.QueryAnalysisProducer;
+import rikser123.crawler.service.SearchQueryMessageService;
 
 import java.util.concurrent.CompletableFuture;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class SearchResponseMessageScheduler {
-  private final QueryResultProducer queryResultProducer;
-  private final SearchResponseMessageService searchResponseMessageService;
+public class UserQueryMessageScheduler {
+  private final QueryAnalysisProducer queryAnalysisProducer;
+  private final SearchQueryMessageService searchQueryMessageService;
 
   @Scheduled(fixedDelayString = "${kafka.scheduler-delay}")
   @SchedulerLock(
-    name = "SearchResponseMessageScheduler",
+    name = "UserQueryMessageScheduler",
     lockAtLeastFor = "3s",
     lockAtMostFor = "10s"
   )
   public void schedule() {
-    log.info("SearchResponseMessageScheduler started");
+    log.info("UserQueryMessageScheduler started");
 
-    var createdMessages = searchResponseMessageService.findAllByStatus(OutboxMessageStatus.CREATED);
+    var createdMessages = searchQueryMessageService.findAllByStatus(OutboxMessageStatus.CREATED);
 
     if (createdMessages.isEmpty()) {
-      log.info("SearchResponseMessageScheduler finished, no messages");
+      log.info("UserQueryMessageScheduler finished, no messages");
       return;
     }
 
-    var futures = createdMessages.stream().map(queryResultProducer::send).toList();
+    var futures = createdMessages.stream().map(queryAnalysisProducer::send).toList();
     CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
-    log.info("SearchResponseMessageScheduler finished");
+    log.info("UserQueryMessageScheduler finished");
   }
 }
-

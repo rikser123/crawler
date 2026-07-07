@@ -1,4 +1,12 @@
-CREATE TABLE message_search_message (
+CREATE TABLE search_response_message (
+   id UUID PRIMARY KEY,
+   dto JSONB NOT NULL,
+   status VARCHAR(50) NOT NULL,
+   created TIMESTAMP WITH TIME ZONE NOT NULL,
+   updated TIMESTAMP WITH TIME ZONE
+);
+
+CREATE TABLE search_query_message (
    id UUID PRIMARY KEY,
    dto JSONB NOT NULL,
    status VARCHAR(50) NOT NULL,

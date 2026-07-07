@@ -7,9 +7,16 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import rikser123.bundle.component.ConstraintValidator;
 import rikser123.crawler.dto.MessageUserQueryDto;
+import rikser123.crawler.dto.UserQueryAnalysisDto;
 import rikser123.crawler.service.PipelineOrchestrator;
-import rikser123.crawler.service.SearchResponseMessageService;
+import rikser123.crawler.service.SearchQueryMessageService;
 
+import java.util.Objects;
+import java.util.UUID;
+
+
+// schdulder на резалты
+// producer не резалты
 
 @Component
 @RequiredArgsConstructor
@@ -20,28 +27,35 @@ public class QueryConsumer {
   private final ObjectMapper objectMapper;
   private final ConstraintValidator validator;
   private final PipelineOrchestrator pipelineOrchestrator;
-  private final SearchResponseMessageService searchResponseMessageService;
+  private final SearchQueryMessageService searchQueryMessageService;
 
   @KafkaListener(topics = { QUERY_TOPIC }, groupId = "crawler")
   public void requestListener(String message) {
-//    UUID requestResultId = null;
+    UUID searchQueryId = null;
+    UUID userId = null;
 
     try {
       var data = objectMapper.readValue(message, MessageUserQueryDto.class);
-//      requestResultId = data.getSearchResponseId();
+      searchQueryId = data.getSearchQueryId();
+      userId = data.getUserId();
       validator.validate(data);
 
       pipelineOrchestrator.initResponseProcessing(data);
     } catch (Exception e) {
-//      if (!Objects.isNull((requestResultId))) {
-//        var requestOutboxMessage = searchResponseMessageService.createOutboxRequestError(
-//          requestResultId, e.getMessage()
-//        );
-//
-//        searchResponseMessageService.save(requestOutboxMessage);
-//      }
+      if (!Objects.isNull((searchQueryId))) {
 
-      log.warn("error handling request result", e);
+        var analysisDto = new UserQueryAnalysisDto();
+        analysisDto.setSearchQueryId(searchQueryId);
+        analysisDto.setUserId(userId);
+        var queryMessage = searchQueryMessageService.createQueryOutboxErrorMessage(
+          analysisDto,
+          "Запрос пользователя передан с неверными параметрами"
+        );
+
+        searchQueryMessageService.save(queryMessage);
+      }
+
+      log.warn("error handling user query", e);
     }
   }
 }

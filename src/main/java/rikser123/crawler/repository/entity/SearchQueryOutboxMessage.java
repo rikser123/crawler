@@ -10,16 +10,16 @@ import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import rikser123.bundle.repository.entity.OutboxMessage;
-import rikser123.crawler.dto.MessageQueryResponseDtoOutbox;
+import rikser123.crawler.dto.UserQueryOutboxDto;
 
 @Entity
-@Table(name = "search_response_message")
-@AllArgsConstructor
-@NoArgsConstructor
+@Table(name = "search_query_message")
 @Getter
 @Setter
-public class SearchResponseOutboxMessage extends OutboxMessage {
+@AllArgsConstructor
+@NoArgsConstructor
+public class SearchQueryOutboxMessage extends OutboxMessage {
   @JdbcTypeCode(SqlTypes.JSON)
   @Column(columnDefinition = "jsonb", name = "dto", nullable = false)
-  private MessageQueryResponseDtoOutbox dto;
+  private UserQueryOutboxDto dto;
 }
