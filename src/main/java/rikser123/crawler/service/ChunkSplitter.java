@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class ChunkSplitter {
+public class ChunkSplitter implements PipelineStep<SearchResponseDtoWithContent> {
   private static final String PARAGRAPH_BORDER = "\\n\\n+|\\n";
   private static final String SENTENCE_BORDER = "(?<=[.!?…])\\s+";
   private static final int CHUNK_GAP = 40;
@@ -52,7 +52,7 @@ public class ChunkSplitter {
   }
 
   @PreDestroy
-  public void shutdown() {
+  void shutdown() {
     log.info("Shutting down ChunkSplitter...");
     executors.shutdown();
     try {
@@ -65,7 +65,8 @@ public class ChunkSplitter {
     }
   }
 
-  public void initSpliting(SearchResponseDtoWithContent responseDto) {
+  @Override
+  public void initProcessing(SearchResponseDtoWithContent responseDto) {
     queue.add(responseDto);
   }
 

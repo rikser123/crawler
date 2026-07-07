@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class QueryAnalizer {
+public class QueryAnalizer implements PipelineStep<UserQueryDto> {
   private final BlockingQueue<UserQueryDto> queue = new LinkedBlockingQueue<>();
   private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
 
@@ -66,7 +66,8 @@ public class QueryAnalizer {
     }
   }
 
-  public void initAnalysis(UserQueryDto request) {
+  @Override
+  public void initProcessing(UserQueryDto request) {
     queue.add(request);
   }
 

@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class Summariser {
+public class Summariser implements PipelineStep<SearchResponseDtoWithChunks> {
   private static final int CHUNKS_COUNT = 2;
 
   private final BlockingQueue<SearchResponseDtoWithChunks> queue = new LinkedBlockingQueue<>();
@@ -61,7 +61,7 @@ public class Summariser {
   }
 
   @PreDestroy
-  public void shutdown() {
+  void shutdown() {
     log.info("Shutting down Summariser...");
     executors.shutdown();
     try {
@@ -74,7 +74,8 @@ public class Summariser {
     }
   }
 
-  public void initSummarising(SearchResponseDtoWithChunks searchResponseDtoWithChunks) {
+  @Override
+  public void initProcessing(SearchResponseDtoWithChunks searchResponseDtoWithChunks) {
     queue.add(searchResponseDtoWithChunks);
   }
 

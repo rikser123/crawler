@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 @Service
 @Slf4j
-public class Crawler {
+public class Crawler implements PipelineStep<SearchResponseDto> {
   private static final Random random = new Random();
   private static final Integer RANDOM_BOUND = 30;
 
@@ -63,7 +63,7 @@ public class Crawler {
   }
 
   @PreDestroy
-  public void shutdown() {
+  void shutdown() {
     log.info("Shutting down Crawler...");
     executors.shutdown();
     try {
@@ -76,7 +76,8 @@ public class Crawler {
     }
   }
 
-  public void initDownloading(SearchResponseDto resultDto) {
+  @Override
+  public void initProcessing(SearchResponseDto resultDto) {
     var requestDto = new ProcessedSearchResponseDto();
     requestDto.setAttempt(0);
     requestDto.setSearchResponse(resultDto);

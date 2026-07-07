@@ -14,10 +14,6 @@ import rikser123.crawler.service.SearchQueryMessageService;
 import java.util.Objects;
 import java.util.UUID;
 
-
-// schdulder на резалты
-// producer не резалты
-
 @Component
 @RequiredArgsConstructor
 @Slf4j

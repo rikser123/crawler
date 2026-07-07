@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class TextExtractor {
+public class TextExtractor implements PipelineStep<SearchResponseDtoWithContent> {
   private static final Integer CONTENT_LENGTH_LIMIT = 1_000_000;
 
   private final BlockingQueue<SearchResponseDtoWithContent> queue = new LinkedBlockingQueue<>();
@@ -49,7 +49,7 @@ public class TextExtractor {
   }
 
   @PreDestroy
-  public void shutdown() {
+  void shutdown() {
     log.info("Shutting down TextExtractor...");
     executors.shutdown();
     try {
@@ -62,7 +62,8 @@ public class TextExtractor {
     }
   }
 
-  public void initExtraction(SearchResponseDtoWithContent responseDto) {
+  @Override
+  public void initProcessing(SearchResponseDtoWithContent responseDto) {
     queue.add(responseDto);
   }
 

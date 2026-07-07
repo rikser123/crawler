@@ -58,24 +58,24 @@ public class PipelineOrchestrator {
         .anyMatch(responseQuery -> responseQuery.getUrl().equals(response.getUrl()));
 
       if (!isResponseInProcessing) {
-        crawler.initDownloading(response);
+        crawler.initProcessing(response);
       }
     });
   }
 
   @EventListener
   void finishDownloadContentListener(FinishDownloadContentEvent event) {
-    textExtractor.initExtraction(event.getContext());
+    textExtractor.initProcessing(event.getContext());
   }
 
   @EventListener
   void finisCleanContentListener(FinishCleanContentEvent event) {
-    chunkSplitter.initSpliting(event.getSearchResponseDto());
+    chunkSplitter.initProcessing(event.getSearchResponseDto());
   }
 
   @EventListener
   void finishSplitChunkEventListener(FinishSplitChunksEvent event) {
-    summariser.initSummarising(event.getDtoWithChunks());
+    summariser.initProcessing(event.getDtoWithChunks());
   }
 
   @EventListener
@@ -101,7 +101,7 @@ public class PipelineOrchestrator {
         userQueryInProcessing.remove(query.getSearchQueryId());
       }).toList();
     processedUserQuery.forEach(query -> {
-      queryAnalizer.initAnalysis(query);
+      queryAnalizer.initProcessing(query);
     });
   }
 
