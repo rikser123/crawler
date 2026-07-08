@@ -50,7 +50,7 @@ public class ChunkSplitterTest {
   @Test
   void shouldSuccessProcessShortChunk() {
     var content = "Content";
-    chunkSplitter.initSpliting(createSearchDto(content));
+    chunkSplitter.initProcessing(createSearchDto(content));
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
@@ -66,7 +66,7 @@ public class ChunkSplitterTest {
   @Test
   void shouldSuccessProcessLongParagraphs() {
     var content = generateContent(3, 1000);
-    chunkSplitter.initSpliting(createSearchDto(content));
+    chunkSplitter.initProcessing(createSearchDto(content));
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
@@ -82,7 +82,7 @@ public class ChunkSplitterTest {
   @Test
   void shouldSuccessProcessLongSentence() {
     var content = generateContent(1, 1000);
-    chunkSplitter.initSpliting(createSearchDto(content));
+    chunkSplitter.initProcessing(createSearchDto(content));
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
@@ -97,7 +97,7 @@ public class ChunkSplitterTest {
 
   @Test
   void shouldHandleErrorIfTextIsEmpty() {
-    chunkSplitter.initSpliting(createSearchDto(""));
+    chunkSplitter.initProcessing(createSearchDto(""));
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)

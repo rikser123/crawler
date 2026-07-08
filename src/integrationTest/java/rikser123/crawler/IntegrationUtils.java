@@ -1,4 +1,4 @@
-package rikser123.yandexfetcher;
+package rikser123.crawler;
 
 import rikser123.bundle.dto.request.RikserRequestItem;
 

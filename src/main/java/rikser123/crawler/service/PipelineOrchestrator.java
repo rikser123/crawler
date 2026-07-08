@@ -87,22 +87,7 @@ public class PipelineOrchestrator {
       response.setContent(dto.getContent());
     });
 
-    var processedUserQuery = userQueryInProcessing
-      .values()
-      .stream()
-      .filter(userQuery ->
-        userQuery.getSearchResponses()
-          .stream()
-          .allMatch(response -> {
-            var status = response.getStatus();
-            return status == SearchResponseDtoStatus.PROCESSED || status == SearchResponseDtoStatus.ERROR;
-          }
-      )).peek(query -> {
-        userQueryInProcessing.remove(query.getSearchQueryId());
-      }).toList();
-    processedUserQuery.forEach(query -> {
-      queryAnalizer.initProcessing(query);
-    });
+    analyzeProcessedQueries();
   }
 
   @EventListener
@@ -147,6 +132,7 @@ public class PipelineOrchestrator {
       searchQueryMessageService.createQueryOutboxErrorMessage(analysisDto, "Обработка всех ответов от яндекса завершился ошибкой!");
     });
 
+    analyzeProcessedQueries();
   }
 
   private List<SearchResponseDtoWithContent> getAllResponsesWithUrl(String url) {
@@ -162,6 +148,26 @@ public class PipelineOrchestrator {
     queries.forEach(query -> {
       responsesQueryInProcessing.remove(query.getSearchResponse().getSearchResponseId());
       query.setStatus(status);
+    });
+  }
+
+  private void analyzeProcessedQueries() {
+    var processedUserQuery = userQueryInProcessing
+      .values()
+      .stream()
+      .filter(userQuery ->
+        userQuery.getSearchResponses()
+          .stream()
+          .allMatch(response -> {
+              var status = response.getStatus();
+              return status == SearchResponseDtoStatus.PROCESSED || status == SearchResponseDtoStatus.ERROR;
+            }
+          )).peek(query -> {
+        userQueryInProcessing.remove(query.getSearchQueryId());
+      }).toList();
+
+    processedUserQuery.forEach(query -> {
+      queryAnalizer.initProcessing(query);
     });
   }
 }

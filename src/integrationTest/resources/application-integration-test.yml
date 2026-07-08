@@ -28,21 +28,32 @@ bundle:
   redis:
     enabled: false
   kafka:
-    kafkaUrl: http://localhost:8081
+    enabled: false
+    kafkaUrl: http://localhost:9092
     user: user
     password: password
 
 logbook:
   enabled: false
 
-yandex:
-  token: token
-  searchApiUrl: http://localhost:8081
-  operationApiUrl: http://localhost:8081
-  spellerApi: http://localhost:8081
-  maxAttempts: 4
-  delay: 500
+fetch:
+  queue-limit: 3
+  timeout-queue-limit: 3
+  max-download-attempt: 3
+  repeat-download-delay: 3
+  max-body-size: 512 000
+  chunk-size: 2000
+  word-overlap-count: 200
 
 kafka:
-  max-fetch-limit: 200
-  scheduler-delay: PT02S
+  scheduler-delay: PT10S
+
+rest:
+  connection-timeout: 5
+  read-timeout: 10
+
+bothub:
+  token: token
+  url: http://localhost:8081
+  summary_model: deepseek-v4-flash
+  analysis_model: deepseek-v4-pro

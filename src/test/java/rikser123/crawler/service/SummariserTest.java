@@ -60,7 +60,7 @@ public class SummariserTest {
 
     when(bothubService.getSummary(any())).thenReturn("outputText");
 
-    summariser.initSummarising(dto);
+    summariser.initProcessing(dto);
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
@@ -84,7 +84,7 @@ public class SummariserTest {
 
     when(bothubService.getSummary(any())).thenReturn("outputText");
 
-    summariser.initSummarising(dto);
+    summariser.initProcessing(dto);
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
@@ -106,7 +106,7 @@ public class SummariserTest {
     dto.setAttempt(0);
     dto.setChunks(List.of("Эй вы там", "Эй вы там", "Эй вы там"));
 
-    summariser.initSummarising(dto);
+    summariser.initProcessing(dto);
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
@@ -126,7 +126,7 @@ public class SummariserTest {
 
     when(bothubService.getSummary(any())).thenThrow(new IllegalStateException("Не удалось получить данные из Bothub"));
 
-    summariser.initSummarising(dto);
+    summariser.initProcessing(dto);
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)

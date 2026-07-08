@@ -12,7 +12,6 @@ import rikser123.crawler.component.CrawlerResponseExtractor;
 import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.SearchResponseDto;
-import rikser123.crawler.dto.SearchResponseDtoStatus;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
 import rikser123.crawler.exception.BigSizeContentException;
 
@@ -77,7 +76,7 @@ public class CrawlerTest {
     when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenReturn("string");
     when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
 
-    crawler.initDownloading(responseDto);
+    crawler.initProcessing(responseDto);
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
@@ -98,7 +97,7 @@ public class CrawlerTest {
     when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenThrow(new RuntimeException());
     when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
 
-    crawler.initDownloading(responseDto);
+    crawler.initProcessing(responseDto);
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
@@ -113,7 +112,7 @@ public class CrawlerTest {
 
     when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body("User-agent: *\nDisallow: /"));
 
-    crawler.initDownloading(responseDto);
+    crawler.initProcessing(responseDto);
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
@@ -142,7 +141,7 @@ public class CrawlerTest {
       return extractor.extractData(null);
     });
 
-    crawler.initDownloading(responseDto);
+    crawler.initProcessing(responseDto);
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
@@ -158,7 +157,7 @@ public class CrawlerTest {
     when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenReturn("cf-browser-verification");
     when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
 
-    crawler.initDownloading(responseDto);
+    crawler.initProcessing(responseDto);
 
     await().atMost(5, TimeUnit.SECONDS)
       .pollInterval(100, TimeUnit.MILLISECONDS)
@@ -174,7 +173,6 @@ public class CrawlerTest {
     searchResponseDto.setDomain("domain");
     searchResponseDto.setQueryText("text");
     searchResponseDto.setQueryId(UUID.randomUUID());
-    searchResponseDto.setStatus(SearchResponseDtoStatus.CREATED);
 
     return searchResponseDto;
   }
