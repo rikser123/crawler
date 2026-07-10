@@ -7,8 +7,8 @@ import org.mockito.Mock;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
-import rikser123.crawler.dto.SearchResponseDto;
-import rikser123.crawler.dto.SearchResponseDtoWithChunks;
+import rikser123.crawler.dto.queryResponse.QueryResponseDto;
+import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithChunks;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
@@ -52,7 +52,7 @@ public class SummariserTest {
   @Test
   void shouldFindRelevantChunks() {
     var dto = new SearchResponseDtoWithChunks();
-    var searchResponse = new SearchResponseDto();
+    var searchResponse = new QueryResponseDto();
     searchResponse.setQueryText("Текст");
     dto.setSearchResponse(searchResponse);
     dto.setAttempt(0);
@@ -76,7 +76,7 @@ public class SummariserTest {
   @Test
   void shouldHandleTwoCHunksWithoutComparingWithQuery() {
     var dto = new SearchResponseDtoWithChunks();
-    var searchResponse = new SearchResponseDto();
+    var searchResponse = new QueryResponseDto();
     searchResponse.setQueryText("Текст");
     dto.setSearchResponse(searchResponse);
     dto.setAttempt(0);
@@ -100,7 +100,7 @@ public class SummariserTest {
   @Test
   void shouldSendErrorMessageIfNoChunks() {
     var dto = new SearchResponseDtoWithChunks();
-    var searchResponse = new SearchResponseDto();
+    var searchResponse = new QueryResponseDto();
     searchResponse.setQueryText("aaaaaaaaaaaaaaa");
     dto.setSearchResponse(searchResponse);
     dto.setAttempt(0);
@@ -118,7 +118,7 @@ public class SummariserTest {
   @Test
   void shouldSendErrorIfBothubUnavailable() {
     var dto = new SearchResponseDtoWithChunks();
-    var searchResponse = new SearchResponseDto();
+    var searchResponse = new QueryResponseDto();
     searchResponse.setQueryText("aaaaaaaaaaaaaaa");
     dto.setSearchResponse(searchResponse);
     dto.setAttempt(0);

@@ -11,7 +11,7 @@ import org.apache.tika.sax.boilerpipe.BoilerpipeContentHandler;
 import org.apache.tika.parser.html.JSoupParser;
 import org.springframework.stereotype.Service;
 import rikser123.crawler.component.EventPublisher;
-import rikser123.crawler.dto.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishCleanContentEvent;
 
 import java.io.ByteArrayInputStream;
@@ -82,7 +82,7 @@ public class TextExtractor implements PipelineStep<SearchResponseDtoWithContent>
       var searchDto = new SearchResponseDtoWithContent();
       searchDto.setSearchResponse(searchResponse.getSearchResponse());
       searchDto.setContent(textHandler.toString());
-      finishEvent.setSearchResponseDto(searchDto);
+      finishEvent.setDto(searchDto);
       eventPublisher.publishEvent(finishEvent);
 
     } catch (Exception e) {

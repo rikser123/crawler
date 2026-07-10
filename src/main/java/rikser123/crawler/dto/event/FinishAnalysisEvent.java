@@ -3,7 +3,7 @@ package rikser123.crawler.dto.event;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import rikser123.crawler.dto.UserQueryAnalysisDto;
+import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
 
 @Data
 @AllArgsConstructor

@@ -9,8 +9,8 @@ import org.mockito.Mock;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
-import rikser123.crawler.dto.SearchResponseDto;
-import rikser123.crawler.dto.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.queryResponse.QueryResponseDto;
+import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishSplitChunksEvent;
 
 import static org.awaitility.Awaitility.await;
@@ -59,7 +59,7 @@ public class ChunkSplitterTest {
           .publishEvent(eventCaptor.capture());
 
         var event = eventCaptor.getValue();
-        assertThat(event.getDtoWithChunks().getChunks()).hasSize(1);
+        assertThat(event.getDto().getChunks()).hasSize(1);
       });
   }
 
@@ -75,7 +75,7 @@ public class ChunkSplitterTest {
           .publishEvent(eventCaptor.capture());
 
         var event = eventCaptor.getValue();
-        assertThat(event.getDtoWithChunks().getChunks().size() > 2).isTrue();
+        assertThat(event.getDto().getChunks().size() > 2).isTrue();
       });
   }
 
@@ -91,7 +91,7 @@ public class ChunkSplitterTest {
           .publishEvent(eventCaptor.capture());
 
         var event = eventCaptor.getValue();
-        assertThat(event.getDtoWithChunks().getChunks().size() > 2).isTrue();
+        assertThat(event.getDto().getChunks().size() > 2).isTrue();
       });
   }
 
@@ -103,13 +103,13 @@ public class ChunkSplitterTest {
       .pollInterval(100, TimeUnit.MILLISECONDS)
       .untilAsserted(() -> {
         verify(eventPublisher, atLeastOnce())
-          .publishResponseProcessingErrorEvent(any(SearchResponseDto.class), any());
+          .publishResponseProcessingErrorEvent(any(QueryResponseDto.class), any());
       });
   }
 
   private static SearchResponseDtoWithContent createSearchDto(String content) {
     var dto = new SearchResponseDtoWithContent();
-    var searchResponse = new SearchResponseDto();
+    var searchResponse = new QueryResponseDto();
     searchResponse.setSearchResponseId(UUID.randomUUID());
     dto.setSearchResponse(searchResponse);
     dto.setContent(content);

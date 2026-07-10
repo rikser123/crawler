@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
-import rikser123.crawler.dto.SearchResponseDto;
+import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
 
 import javax.annotation.Nullable;
@@ -20,7 +20,7 @@ public class EventPublisher {
   }
 
   public void publishResponseProcessingErrorEvent(
-    SearchResponseDto searchResponse,
+    QueryResponseDto searchResponse,
     @Nullable String errorMessage
   ) {
     var errorEvent = new ResponseProcessingErrorEvent();

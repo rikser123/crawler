@@ -5,13 +5,11 @@ import rikser123.bundle.repository.entity.OutboxMessageStatus;
 import rikser123.bundle.service.OutboxMessageService;
 import rikser123.bundle.service.StatusMatrix;
 import rikser123.crawler.dto.MessageError;
-import rikser123.crawler.dto.UserQueryAnalysisDto;
-import rikser123.crawler.dto.UserQueryOutboxDto;
-import rikser123.crawler.dto.UserQueryStatus;
+import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
+import rikser123.crawler.dto.userQuery.UserQueryOutboxDto;
+import rikser123.crawler.dto.userQuery.UserQueryStatus;
 import rikser123.crawler.repository.SearchQueryOutboxMessageRepository;
 import rikser123.crawler.repository.entity.SearchQueryOutboxMessage;
-
-import java.util.UUID;
 
 @Service
 public class SearchQueryMessageService extends OutboxMessageService<SearchQueryOutboxMessage> {

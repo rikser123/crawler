@@ -1,4 +1,4 @@
-package rikser123.crawler.dto;
+package rikser123.crawler.dto.queryResponse;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -9,8 +9,10 @@ import java.util.UUID;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class MessageQueryResponseDtoOutbox {
+public class QueryResponseDto {
   private UUID searchResponseId;
-  private SearchResponseStatus status;
-  private MessageError error;
+  private String url;
+  private String domain;
+  private UUID queryId;
+  private String queryText;
 }

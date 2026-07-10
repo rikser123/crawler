@@ -8,7 +8,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.web.client.RestTemplate;
 import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.EventPublisher;
-import rikser123.crawler.dto.MessageUserQueryDto;
+import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
 import rikser123.crawler.dto.event.FinishAnalysisEvent;
 import rikser123.crawler.dto.event.FinishCleanContentEvent;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
@@ -112,8 +112,8 @@ public class PipelineOrchestratorTest extends BaseConfig {
             return false;
           }
           var event = (FinishDownloadContentEvent) arg;
-          assertThat(event.getContext().getContent()).isEqualTo(TEXT_CONTENT);
-          assertThat(event.getContext().getSearchResponse().getSearchResponseId()).isEqualTo(messageDto.getSearchResponses().getFirst().getSearchResponseId());
+          assertThat(event.getDto().getContent()).isEqualTo(TEXT_CONTENT);
+          assertThat(event.getDto().getSearchResponse().getSearchResponseId()).isEqualTo(messageDto.getSearchResponses().getFirst().getSearchResponseId());
           return true;
         }));
       });
@@ -126,7 +126,7 @@ public class PipelineOrchestratorTest extends BaseConfig {
             return false;
           }
           var event = (FinishCleanContentEvent) arg;
-          assertThat(event.getSearchResponseDto().getContent().strip()).isEqualTo(CLEAN_TEXT.strip());
+          assertThat(event.getDto().getContent().strip()).isEqualTo(CLEAN_TEXT.strip());
           return true;
         }));
       });
@@ -139,7 +139,7 @@ public class PipelineOrchestratorTest extends BaseConfig {
             return false;
           }
           var event = (FinishSplitChunksEvent) arg;
-          assertThat(event.getDtoWithChunks().getChunks().getFirst().strip()).isEqualTo(CLEAN_TEXT.strip());
+          assertThat(event.getDto().getChunks().getFirst().strip()).isEqualTo(CLEAN_TEXT.strip());
           return true;
         }));
       });
@@ -152,7 +152,7 @@ public class PipelineOrchestratorTest extends BaseConfig {
             return false;
           }
           var event = (SummaryEvent) arg;
-          assertThat(event.getSearchDto().getContent()).isEqualTo(summary);
+          assertThat(event.getDto().getContent()).isEqualTo(summary);
           return true;
         }));
       });
@@ -332,8 +332,8 @@ public class PipelineOrchestratorTest extends BaseConfig {
             return false;
           }
           var event = (FinishDownloadContentEvent) arg;
-          assertThat(event.getContext().getContent()).isEqualTo(TEXT_CONTENT);
-          assertThat(event.getContext().getSearchResponse().getSearchResponseId()).isEqualTo(messageDto.getSearchResponses().getFirst().getSearchResponseId());
+          assertThat(event.getDto().getContent()).isEqualTo(TEXT_CONTENT);
+          assertThat(event.getDto().getSearchResponse().getSearchResponseId()).isEqualTo(messageDto.getSearchResponses().getFirst().getSearchResponseId());
           return true;
         }));
       });

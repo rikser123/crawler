@@ -4,12 +4,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
-import rikser123.crawler.dto.SearchResponseDto;
-import rikser123.crawler.dto.MessageUserQueryDto;
-import rikser123.crawler.dto.SearchResponseDtoStatus;
-import rikser123.crawler.dto.SearchResponseDtoWithContent;
-import rikser123.crawler.dto.UserQueryAnalysisDto;
-import rikser123.crawler.dto.UserQueryDto;
+import rikser123.crawler.dto.queryResponse.QueryResponseDto;
+import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
+import rikser123.crawler.dto.queryResponse.QueryResponseDtoStatus;
+import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
+import rikser123.crawler.dto.userQuery.UserQueryDto;
 import rikser123.crawler.dto.event.FinishAnalysisEvent;
 import rikser123.crawler.dto.event.FinishCleanContentEvent;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class PipelineOrchestrator {
   private final Map<UUID, UserQueryDto> userQueryInProcessing = new ConcurrentHashMap<>();
-  private final Map<UUID, SearchResponseDto> responsesQueryInProcessing = new ConcurrentHashMap<>();
+  private final Map<UUID, QueryResponseDto> responsesQueryInProcessing = new ConcurrentHashMap<>();
   private final Object pipelineLock = new Object();
 
   private final Crawler crawler;
@@ -67,36 +67,34 @@ public class PipelineOrchestrator {
 
   @EventListener
   void finishDownloadContentListener(FinishDownloadContentEvent event) {
-    log.info("PIPELINE: FinishDownloadContentEvent {}", event.getContext().getSearchResponse().getSearchResponseId());
-    textExtractor.initProcessing(event.getContext());
+    log.info("PIPELINE: FinishDownloadContentEvent {}", event.getDto().getSearchResponse().getSearchResponseId());
+    textExtractor.initProcessing(event.getDto());
   }
 
   @EventListener
   void finisCleanContentListener(FinishCleanContentEvent event) {
-    log.info("PIPELINE: FinishCleanContentEvent {}", event.getSearchResponseDto().getSearchResponse().getSearchResponseId());
-    chunkSplitter.initProcessing(event.getSearchResponseDto());
+    log.info("PIPELINE: FinishCleanContentEvent {}", event.getDto().getSearchResponse().getSearchResponseId());
+    chunkSplitter.initProcessing(event.getDto());
   }
 
   @EventListener
   void finishSplitChunkEventListener(FinishSplitChunksEvent event) {
-    log.info("PIPELINE: FinishSplitChunksEvent {}", event.getDtoWithChunks().getSearchResponse().getSearchResponseId());
-    summariser.initProcessing(event.getDtoWithChunks());
+    log.info("PIPELINE: FinishSplitChunksEvent {}", event.getDto().getSearchResponse().getSearchResponseId());
+    summariser.initProcessing(event.getDto());
   }
 
   @EventListener
   void summaryEventListener(SummaryEvent summaryEvent) {
-    log.info("PIPELINE: SummaryEvent {}", summaryEvent.getSearchDto().getSearchResponse().getSearchResponseId());
-    var dto = summaryEvent.getSearchDto();
+    log.info("PIPELINE: SummaryEvent {}", summaryEvent.getDto().getSearchResponse().getSearchResponseId());
+    var dto = summaryEvent.getDto();
     var responses = getAllResponsesWithUrl(dto.getSearchResponse().getUrl());
-    setResponseQueryStatus(responses, SearchResponseDtoStatus.PROCESSED);
+    setResponseQueryStatus(responses, QueryResponseDtoStatus.PROCESSED);
     responses.forEach(response -> {
       response.setContent(dto.getContent());
     });
 
     synchronized (pipelineLock) {
       analyzeProcessedQueries();
-      log.warn("USER QUERY {}", userQueryInProcessing);
-
     }
   }
 
@@ -123,7 +121,7 @@ public class PipelineOrchestrator {
       var url = event.getUrl();
 
       var responses = getAllResponsesWithUrl(url);
-      setResponseQueryStatus(responses, SearchResponseDtoStatus.ERROR);
+      setResponseQueryStatus(responses, QueryResponseDtoStatus.ERROR);
       var outboxMessages = responses.stream().map(response ->
         searchResponseMessageService.createOutboxRequestError(response.getSearchResponse().getSearchResponseId(), errorMessage)
       ).toList();
@@ -133,7 +131,7 @@ public class PipelineOrchestrator {
         .values()
         .stream()
         .filter(query ->
-          query.getSearchResponses().stream().allMatch(response -> response.getStatus() == SearchResponseDtoStatus.ERROR)
+          query.getSearchResponses().stream().allMatch(response -> response.getStatus() == QueryResponseDtoStatus.ERROR)
         ).toList();
 
       failedQueries.forEach(query -> {
@@ -141,11 +139,13 @@ public class PipelineOrchestrator {
         var analysisDto = new UserQueryAnalysisDto();
         analysisDto.setUserId(query.getUserId());
         analysisDto.setSearchQueryId(query.getSearchQueryId());
-        searchQueryMessageService.createQueryOutboxErrorMessage(analysisDto, "Обработка всех ответов от яндекса завершился ошибкой!");
+        searchQueryMessageService.createQueryOutboxErrorMessage(
+          analysisDto,
+          "Обработка всех ответов от яндекса завершился ошибкой!"
+        );
       });
 
       analyzeProcessedQueries();
-      log.warn("USER QUERY {}", userQueryInProcessing);
     }
   }
 
@@ -158,7 +158,7 @@ public class PipelineOrchestrator {
       .toList();
   }
 
-  private void setResponseQueryStatus(List<SearchResponseDtoWithContent> queries, SearchResponseDtoStatus status) {
+  private void setResponseQueryStatus(List<SearchResponseDtoWithContent> queries, QueryResponseDtoStatus status) {
     queries.forEach(query -> {
       responsesQueryInProcessing.remove(query.getSearchResponse().getSearchResponseId());
       query.setStatus(status);
@@ -174,7 +174,7 @@ public class PipelineOrchestrator {
           .stream()
           .allMatch(response -> {
               var status = response.getStatus();
-              return status == SearchResponseDtoStatus.PROCESSED || status == SearchResponseDtoStatus.ERROR;
+              return status == QueryResponseDtoStatus.PROCESSED || status == QueryResponseDtoStatus.ERROR;
             }
           )).peek(query -> {
         userQueryInProcessing.remove(query.getSearchQueryId());

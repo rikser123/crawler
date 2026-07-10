@@ -14,10 +14,10 @@ import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.CrawlerResponseExtractor;
 import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
-import rikser123.crawler.dto.DelayedProcessedSearchResponseDto;
-import rikser123.crawler.dto.SearchResponseDto;
-import rikser123.crawler.dto.ProcessedSearchResponseDto;
-import rikser123.crawler.dto.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.queryResponse.DelayedQueryResponseDtoCrawler;
+import rikser123.crawler.dto.queryResponse.QueryResponseDto;
+import rikser123.crawler.dto.queryResponse.QueryResponseDtoCrawler;
+import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
 import rikser123.crawler.exception.BigSizeContentException;
 import rikser123.crawler.utils.CaptchaUtils;
@@ -37,13 +37,13 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 @Service
 @Slf4j
-public class Crawler implements PipelineStep<SearchResponseDto> {
+public class Crawler implements PipelineStep<QueryResponseDto> {
   private static final Random random = new Random();
   private static final Integer RANDOM_BOUND = 30;
 
   private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
-  private final BlockingQueue<ProcessedSearchResponseDto> queue = new LinkedBlockingQueue<>();
-  private final DelayQueue<DelayedProcessedSearchResponseDto> delayQueue = new DelayQueue<>();
+  private final BlockingQueue<QueryResponseDtoCrawler> queue = new LinkedBlockingQueue<>();
+  private final DelayQueue<DelayedQueryResponseDtoCrawler> delayQueue = new DelayQueue<>();
   private Semaphore queueSemaphore;
   private Semaphore delayQueueSemaphore;
 
@@ -76,8 +76,8 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
   }
 
   @Override
-  public void initProcessing(SearchResponseDto resultDto) {
-    var requestDto = new ProcessedSearchResponseDto();
+  public void initProcessing(QueryResponseDto resultDto) {
+    var requestDto = new QueryResponseDtoCrawler();
     requestDto.setAttempt(0);
     requestDto.setSearchResponse(resultDto);
 
@@ -93,7 +93,7 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
     }
   }
 
-  private <T extends ProcessedSearchResponseDto> void initThreadPool(BlockingQueue<T> queue, Semaphore semaphore, String queueType) {
+  private <T extends QueryResponseDtoCrawler> void initThreadPool(BlockingQueue<T> queue, Semaphore semaphore, String queueType) {
     executors.execute(() -> {
       while (true) {
         try {
@@ -120,7 +120,7 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
     });
   }
 
-  private <T extends ProcessedSearchResponseDto> String downloadLinkContent(
+  private <T extends QueryResponseDtoCrawler> String downloadLinkContent(
     T requestDto,
     Semaphore semaphore
     ) {
@@ -173,8 +173,8 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
     }
   }
 
-  private <T extends ProcessedSearchResponseDto> void addDelayProcess(T requestDto) {
-    var delayedProcess = new DelayedProcessedSearchResponseDto();
+  private <T extends QueryResponseDtoCrawler> void addDelayProcess(T requestDto) {
+    var delayedProcess = new DelayedQueryResponseDtoCrawler();
     delayedProcess.setSearchResponse(requestDto.getSearchResponse());
     delayedProcess.setAttempt(requestDto.getAttempt() + 1);
 
@@ -253,7 +253,7 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
     }
   }
 
-  private <T extends ProcessedSearchResponseDto> SearchResponseDtoWithContent prepareRequestsWithContent(
+  private <T extends QueryResponseDtoCrawler> SearchResponseDtoWithContent prepareRequestsWithContent(
     T request,
     String content
   ) {
@@ -266,7 +266,7 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
 
   private void publishFinishDownloadContentEvent(SearchResponseDtoWithContent content) {
     var finishEvent = new FinishDownloadContentEvent();
-    finishEvent.setContext(content);
+    finishEvent.setDto(content);
     eventPublisher.publishEvent(finishEvent);
   }
 }

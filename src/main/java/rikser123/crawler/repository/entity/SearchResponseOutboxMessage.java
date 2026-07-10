@@ -10,7 +10,7 @@ import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import rikser123.bundle.repository.entity.OutboxMessage;
-import rikser123.crawler.dto.MessageQueryResponseDtoOutbox;
+import rikser123.crawler.dto.queryResponse.MessageQueryResponseDtoOutbox;
 
 @Entity
 @Table(name = "search_response_message")

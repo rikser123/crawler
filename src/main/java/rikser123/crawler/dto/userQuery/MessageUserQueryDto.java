@@ -1,4 +1,4 @@
-package rikser123.crawler.dto;
+package rikser123.crawler.dto.userQuery;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;

@@ -1,4 +1,4 @@
-package rikser123.crawler.dto;
+package rikser123.crawler.dto.queryResponse;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class DelayedProcessedSearchResponseDto extends ProcessedSearchResponseDto implements Delayed {
+public class DelayedQueryResponseDtoWithChunks extends SearchResponseDtoWithChunks implements Delayed {
   private int delayInSeconds;
   private long startTime = System.currentTimeMillis();
 
@@ -20,6 +20,7 @@ public class DelayedProcessedSearchResponseDto extends ProcessedSearchResponseDt
     var diff = current - startTime;
     var remaining = delayInSeconds * 1000 - diff;
     return unit.convert(remaining, TimeUnit.MILLISECONDS);
+
   }
 
   @Override

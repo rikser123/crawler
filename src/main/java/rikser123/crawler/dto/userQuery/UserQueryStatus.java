@@ -1,4 +1,4 @@
-package rikser123.crawler.dto;
+package rikser123.crawler.dto.userQuery;
 
 public enum UserQueryStatus {
   CREATED,

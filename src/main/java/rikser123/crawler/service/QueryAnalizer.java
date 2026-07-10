@@ -10,9 +10,9 @@ import org.springframework.stereotype.Service;
 import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.MessageError;
-import rikser123.crawler.dto.SearchResponseDtoWithContent;
-import rikser123.crawler.dto.UserQueryAnalysisDto;
-import rikser123.crawler.dto.UserQueryDto;
+import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
+import rikser123.crawler.dto.userQuery.UserQueryDto;
 import rikser123.crawler.dto.event.FinishAnalysisEvent;
 
 

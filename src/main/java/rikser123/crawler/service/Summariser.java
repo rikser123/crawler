@@ -14,15 +14,13 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
-import rikser123.crawler.dto.BothubRequestDto;
-import rikser123.crawler.dto.DelayedSearchResponseDtoWithChunks;
-import rikser123.crawler.dto.SearchResponseDto;
-import rikser123.crawler.dto.SearchResponseDtoWithChunks;
-import rikser123.crawler.dto.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.queryResponse.DelayedQueryResponseDtoWithChunks;
+import rikser123.crawler.dto.queryResponse.QueryResponseDto;
+import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithChunks;
+import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.SummaryEvent;
 
 import java.util.ArrayList;
@@ -42,7 +40,7 @@ public class Summariser implements PipelineStep<SearchResponseDtoWithChunks> {
   private static final int CHUNKS_COUNT = 2;
 
   private final BlockingQueue<SearchResponseDtoWithChunks> queue = new LinkedBlockingQueue<>();
-  private final DelayQueue<DelayedSearchResponseDtoWithChunks> delayQueue = new DelayQueue<>();
+  private final DelayQueue<DelayedQueryResponseDtoWithChunks> delayQueue = new DelayQueue<>();
   private Semaphore queueSemaphore;
   private Semaphore delayQueueSemaphore;
   private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
@@ -103,7 +101,7 @@ public class Summariser implements PipelineStep<SearchResponseDtoWithChunks> {
         return;
       }
 
-      var delayDto = new DelayedSearchResponseDtoWithChunks();
+      var delayDto = new DelayedQueryResponseDtoWithChunks();
       delayDto.setDelayInSeconds(delay);
       delayDto.setSearchResponse(searchResponseDtoWithChunks.getSearchResponse());
       delayDto.setChunks(searchResponseDtoWithChunks.getChunks());
@@ -166,12 +164,12 @@ public class Summariser implements PipelineStep<SearchResponseDtoWithChunks> {
     }
   }
 
-  private void publishSummaryEvent(SearchResponseDto searchResponseDto, String summary) {
+  private void publishSummaryEvent(QueryResponseDto queryResponseDto, String summary) {
     var event = new SummaryEvent();
     var eventDto = new SearchResponseDtoWithContent();
-    eventDto.setSearchResponse(searchResponseDto);
+    eventDto.setSearchResponse(queryResponseDto);
     eventDto.setContent(summary);
-    event.setSearchDto(eventDto);
+    event.setDto(eventDto);
     eventPublisher.publishEvent(event);
   }
 

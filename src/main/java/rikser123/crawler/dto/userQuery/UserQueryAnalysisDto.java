@@ -1,8 +1,9 @@
-package rikser123.crawler.dto;
+package rikser123.crawler.dto.userQuery;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import rikser123.crawler.dto.MessageError;
 
 import java.util.UUID;
 

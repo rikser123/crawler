@@ -1,4 +1,4 @@
-package rikser123.crawler.dto;
+package rikser123.crawler.dto.queryResponse;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -10,7 +10,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class SearchResponseDtoWithChunks {
-  private SearchResponseDto searchResponse;
+  private QueryResponseDto searchResponse;
   private List<String> chunks;
   private int attempt;
 }

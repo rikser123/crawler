@@ -8,9 +8,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
-import rikser123.crawler.dto.SearchResponseDto;
-import rikser123.crawler.dto.SearchResponseDtoWithChunks;
-import rikser123.crawler.dto.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.queryResponse.QueryResponseDto;
+import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithChunks;
+import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.event.FinishSplitChunksEvent;
 
 import java.util.ArrayList;
@@ -186,12 +186,12 @@ public class ChunkSplitter implements PipelineStep<SearchResponseDtoWithContent>
     return chunk.length() + text.length() - CHUNK_GAP < chunkSize;
   }
 
-  private void publishFinishSplitChunksEvent(SearchResponseDto searchResponseDto, List<String> chunks) {
+  private void publishFinishSplitChunksEvent(QueryResponseDto queryResponseDto, List<String> chunks) {
     var event = new FinishSplitChunksEvent();
     var eventDto = new SearchResponseDtoWithChunks();
-    eventDto.setSearchResponse(searchResponseDto);
+    eventDto.setSearchResponse(queryResponseDto);
     eventDto.setChunks(chunks);
-    event.setDtoWithChunks(eventDto);
+    event.setDto(eventDto);
     eventPublisher.publishEvent(event);
   }
 }

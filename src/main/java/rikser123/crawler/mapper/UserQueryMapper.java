@@ -6,10 +6,10 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.springframework.beans.factory.annotation.Autowired;
-import rikser123.crawler.dto.MessageUserQueryDto;
-import rikser123.crawler.dto.SearchResponseDtoStatus;
-import rikser123.crawler.dto.SearchResponseDtoWithContent;
-import rikser123.crawler.dto.UserQueryDto;
+import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
+import rikser123.crawler.dto.queryResponse.QueryResponseDtoStatus;
+import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.userQuery.UserQueryDto;
 
 @Mapper(componentModel = "spring")
 public abstract class UserQueryMapper {
@@ -28,7 +28,7 @@ public abstract class UserQueryMapper {
     }).map(response  -> {
       var processedResponse = new SearchResponseDtoWithContent();
       processedResponse.setSearchResponse(response);
-      processedResponse.setStatus(SearchResponseDtoStatus.CREATED);
+      processedResponse.setStatus(QueryResponseDtoStatus.CREATED);
       return processedResponse;
     }).toList();
     dto.setSearchResponses(dtoResponses);

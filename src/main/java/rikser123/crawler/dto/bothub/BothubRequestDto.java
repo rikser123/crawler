@@ -1,4 +1,4 @@
-package rikser123.crawler.dto;
+package rikser123.crawler.dto.bothub;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

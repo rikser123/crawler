@@ -11,7 +11,7 @@ import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.CrawlerResponseExtractor;
 import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
-import rikser123.crawler.dto.SearchResponseDto;
+import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.event.FinishDownloadContentEvent;
 import rikser123.crawler.exception.BigSizeContentException;
 
@@ -83,8 +83,8 @@ public class CrawlerTest {
       .untilAsserted(() -> {
         verify(eventPublisher, atLeastOnce()).publishEvent(argThat(arg -> {
           var event = (FinishDownloadContentEvent) arg;
-          assertThat(event.getContext().getContent()).isEqualTo("string");
-          assertThat(event.getContext().getSearchResponse().getSearchResponseId()).isEqualTo(responseDto.getSearchResponseId());
+          assertThat(event.getDto().getContent()).isEqualTo("string");
+          assertThat(event.getDto().getSearchResponse().getSearchResponseId()).isEqualTo(responseDto.getSearchResponseId());
           return true;
         }));
       });
@@ -166,8 +166,8 @@ public class CrawlerTest {
       });
   }
 
-  private static SearchResponseDto createResponseDto() {
-    var searchResponseDto = new SearchResponseDto();
+  private static QueryResponseDto createResponseDto() {
+    var searchResponseDto = new QueryResponseDto();
     searchResponseDto.setSearchResponseId(UUID.randomUUID());
     searchResponseDto.setUrl(("url"));
     searchResponseDto.setDomain("domain");

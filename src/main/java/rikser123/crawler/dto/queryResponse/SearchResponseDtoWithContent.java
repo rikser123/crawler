@@ -1,4 +1,4 @@
-package rikser123.crawler.dto;
+package rikser123.crawler.dto.queryResponse;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class SearchResponseDtoWithContent {
-  private SearchResponseDto searchResponse;
+  private QueryResponseDto searchResponse;
   private String content;
-  private SearchResponseDtoStatus status;
+  private QueryResponseDtoStatus status;
 }

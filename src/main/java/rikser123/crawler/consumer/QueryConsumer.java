@@ -6,8 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import rikser123.bundle.component.ConstraintValidator;
-import rikser123.crawler.dto.MessageUserQueryDto;
-import rikser123.crawler.dto.UserQueryAnalysisDto;
+import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
+import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
 import rikser123.crawler.service.PipelineOrchestrator;
 import rikser123.crawler.service.SearchQueryMessageService;
 
