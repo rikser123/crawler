@@ -24,7 +24,7 @@ import rikser123.crawler.utils.CaptchaUtils;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.DelayQueue;
@@ -58,13 +58,12 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
     queueSemaphore = new Semaphore(fetchProperties.getQueueLimit());
     delayQueueSemaphore = new Semaphore(fetchProperties.getTimeoutQueueLimit());
 
-    initThreadPool(queue, queueSemaphore);
-    initThreadPool(delayQueue, delayQueueSemaphore);
+    initThreadPool(queue, queueSemaphore, "MAIN");
+    initThreadPool(delayQueue, delayQueueSemaphore, "DELAY");
   }
 
   @PreDestroy
   void shutdown() {
-    log.info("Shutting down Crawler...");
     executors.shutdown();
     try {
       if (!executors.awaitTermination(30, TimeUnit.SECONDS)) {
@@ -86,6 +85,7 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
       .filter(response ->
         response.getSearchResponse().getDomain().equals(resultDto.getDomain()))
       .count();
+
     if (sameDomainCount > 0) {
       addDelayProcess(requestDto);
     } else {
@@ -93,21 +93,26 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
     }
   }
 
-  private <T extends  ProcessedSearchResponseDto>void initThreadPool(BlockingQueue<T> queue, Semaphore semaphore) {
+  private <T extends ProcessedSearchResponseDto> void initThreadPool(BlockingQueue<T> queue, Semaphore semaphore, String queueType) {
     executors.execute(() -> {
       while (true) {
         try {
           var request = queue.take();
+
           executors.execute(() -> {
             try {
               var content = downloadLinkContent(request, semaphore);
-              var requestWithContent = prepareRequestsWithContent(request, content);
-              publishFinishDownloadContentEvent(requestWithContent);
+              if (!Objects.isNull(content)) {
+                var requestWithContent = prepareRequestsWithContent(request, content);
+                publishFinishDownloadContentEvent(requestWithContent);
+              }
             } catch (IllegalStateException e) {
+              log.error("IllegalStateException in download thread: {}, url={}", e.getMessage(), request.getSearchResponse().getUrl(), e);
               eventPublisher.publishResponseProcessingErrorEvent(request.getSearchResponse(), e.getMessage());
             }
           });
-        }  catch (InterruptedException e) {
+        } catch (InterruptedException e) {
+          log.warn("Thread pool consumer for queue type {} was interrupted", queueType);
           Thread.currentThread().interrupt();
           break;
         }
@@ -115,28 +120,33 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
     });
   }
 
-  private <T extends ProcessedSearchResponseDto> String  downloadLinkContent(T requestDto, Semaphore semaphore) {
+  private <T extends ProcessedSearchResponseDto> String downloadLinkContent(
+    T requestDto,
+    Semaphore semaphore
+    ) {
     var link = requestDto.getSearchResponse().getUrl();
+    var currentAttempt = requestDto.getAttempt();
 
-    if (requestDto.getAttempt() >= fetchProperties.getMaxDownloadAttempt()) {
-      log.warn("Превышен лимит попыток скачивания {}", link);
+    if (currentAttempt >= fetchProperties.getMaxDownloadAttempt()) {
+      log.warn("Превышен лимит попыток скачивания {}, maxAttempt={}", link, fetchProperties.getMaxDownloadAttempt());
       throw new IllegalStateException("Превышен лимит попыток скачивания!");
     }
 
-    var isAllowed = isParsingAllowed(requestDto.getSearchResponse().getUrl());
+    var isAllowed = isParsingAllowed(link);
 
     if (!isAllowed) {
-      log.warn("Парсинг ссылки не разрешен {}", link);
+      log.warn("Парсинг ссылки не разрешен robots.txt: {}", link);
       throw new IllegalStateException("Парсинг ссылки не разрешен!");
     }
 
     try {
       semaphore.acquire();
+
       var response = restTemplate.execute(
         link,
         HttpMethod.GET,
         request -> {
-           request.getHeaders().add("User-Agent", "RikserBot/1.0");
+          request.getHeaders().add("User-Agent", "RikserBot/1.0");
         },
         crawlerResponseExtractor,
         String.class
@@ -144,17 +154,18 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
 
       var isCaptcha = CaptchaUtils.isCaptcha(response);
       if (isCaptcha) {
-        log.warn("Обнаружена капче по ссылке {}, перемещено в очередь для повторного запроса", link);
+        log.warn("Обнаружена капча по ссылке {}, перемещено в очередь для повторного запроса", link);
         addDelayProcess(requestDto);
         return null;
       }
 
       return response;
+
     } catch (BigSizeContentException e) {
-      log.warn("Слишком большой размер скачиваемой страницы!", e);
+      log.warn("Слишком большой размер скачиваемой страницы! url={}, error={}", link, e.getMessage(), e);
       throw new IllegalStateException("Слишком большой размер скачиваемой страницы!");
     } catch (Exception e) {
-      log.warn("Проблемы со скачиванием по ссылке {}, перемещено в очередь для повторного запроса", link);
+      log.warn("Проблемы со скачиванием по ссылке {}, error={}: {}", link, e.getClass().getSimpleName(), e.getMessage(), e);
       addDelayProcess(requestDto);
       return null;
     } finally {
@@ -170,8 +181,10 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
     var randomPercent = random.nextInt(RANDOM_BOUND);
     var repeatDownloadDelay = fetchProperties.getRepeatDownloadDelay();
     var delayTime = repeatDownloadDelay + (repeatDownloadDelay / 100 * randomPercent);
+
     var sameDomainCount = delayQueue.stream()
-      .filter(response -> response.getSearchResponse().getDomain().equals(requestDto.getSearchResponse().getDomain()))
+      .filter(response -> response.getSearchResponse().getDomain()
+        .equals(requestDto.getSearchResponse().getDomain()))
       .count();
 
     if (sameDomainCount > 0) {
@@ -179,6 +192,7 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
     }
 
     delayedProcess.setDelayInSeconds(delayTime);
+
     delayQueue.add(delayedProcess);
   }
 
@@ -188,13 +202,17 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
     try {
       url = new URI(link);
     } catch (Exception e) {
-        log.warn("incorrect url format {}", link, e);
-        return false;
+      return false;
     }
+
     var domain = url.getHost();
     var robotsLink = url.getScheme() + "://" + domain + "/robots.txt";
+
     var robotsResponse = redisCacheService.get(domain, String.class)
-      .orElseGet(() -> downloadDomainRobotsFile(domain, robotsLink));
+      .orElseGet(() -> {
+        var response = downloadDomainRobotsFile(domain, robotsLink);
+        return response;
+      });
 
     if (StringUtils.isEmpty(robotsResponse)) {
       return true;
@@ -208,26 +226,31 @@ public class Crawler implements PipelineStep<SearchResponseDto> {
       "CrawlerBot/1.0"
     );
 
-    return rules.isAllowed(link);
+    var allowed = rules.isAllowed(link);
+    return allowed;
   }
 
   private String downloadDomainRobotsFile(String domain, String robotsLink) {
-    var response = restTemplate.getForEntity(robotsLink, String.class);
-    var status = response.getStatusCode();
+    try {
+      var response = restTemplate.getForEntity(robotsLink, String.class);
+      var status = response.getStatusCode();
 
-    if (StringUtils.isEmpty(response.getBody())) {
+      if (StringUtils.isEmpty(response.getBody())) {
+        return null;
+      }
+
+      if (!status.equals(HttpStatus.OK) && !status.equals(HttpStatus.NO_CONTENT)) {
+        return null;
+      }
+
+      var body = response.getBody();
+
+      redisCacheService.put(domain, body);
+      return body;
+    } catch (Exception e) {
+      log.warn("Failed to download robots.txt for {}: {}: {}", robotsLink, e.getClass().getSimpleName(), e.getMessage(), e);
       return null;
     }
-
-    if (!status.equals(HttpStatus.OK) && !status.equals(HttpStatus.NO_CONTENT)) {
-      return null;
-    }
-
-    var body = response.getBody();
-
-    redisCacheService.put(domain, body);
-
-    return body;
   }
 
   private <T extends ProcessedSearchResponseDto> SearchResponseDtoWithContent prepareRequestsWithContent(

@@ -78,9 +78,9 @@ logbook:
 fetch:
   queue-limit: ${QUEUE_LIMIT:50}
   timeout-queue-limit: ${TIMEOUT_QUEUE_LIMIT:50}
-  max-download-attempt: ${MAX_DOWNLOAD_ATTEMPT:50}
-  repeat-download-delay: ${REPEAT_DOWNLOAD_ATTEMPT:50}
-  max-body-size: ${MAX_BODY_SIZE:512 000}
+  max-download-attempt: ${MAX_DOWNLOAD_ATTEMPT:3}
+  repeat-download-delay: ${REPEAT_DOWNLOAD_ATTEMPT:3}
+  max-body-size: ${MAX_BODY_SIZE:1 024 000}
   chunk-size: ${CHUNK_SIZE:2000}
   word-overlap-count: ${WORD_OVERLAP_COUNT:200}
 
@@ -96,4 +96,5 @@ bothub:
   url: ${BOTHUB_URL}
   summary_model: ${BOTHUD_SUMMARY_MODEL:deepseek-v4-flash}
   analysis_model: ${BOTHUD_ANALYISIS_MODEL:deepseek-v4-pro}
+  timeout: ${BOTHUB_CONNECTION_TIMEOUT:60}
 

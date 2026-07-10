@@ -34,11 +34,11 @@ public class MessageUserQueryDto {
     private UUID searchResponseId;
 
     @NotEmpty(message = "Параметр url должен быть заполнен!")
-    @CheckSqlInjection
+//    @CheckSqlInjection
     private String url;
 
     @NotEmpty(message = "Параметр domain должен быть заполнен!")
-    @CheckSqlInjection
+//    @CheckSqlInjection
     private String domain;
   }
 }

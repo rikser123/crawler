@@ -77,11 +77,18 @@ public class BothubService {
     requestDto.setModel(model);
     requestDto.setInput(prompt);
 
-    var response = bothubClient.getResponses(requestDto, "Bearer " + bothubToken);
-    if (!Objects.isNull(response.getError())) {
+    try {
+      var response = bothubClient.getResponses(requestDto, "Bearer " + bothubToken);
+      if (!Objects.isNull(response.getError())) {
+        log.warn("Не удалось получить ответ от {}", model);
+        throw new IllegalStateException("Не удалось получить ответ модели");
+      }
+      return response.getOutputText();
+
+    } catch (Exception e) {
       log.warn("Не удалось получить ответ от {}", model);
-      throw new IllegalStateException("Не удалось определить релевантные чанки");
+      throw new IllegalStateException("Не удалось получить ответ модели");
     }
-    return response.getOutputText();
+
   }
 }

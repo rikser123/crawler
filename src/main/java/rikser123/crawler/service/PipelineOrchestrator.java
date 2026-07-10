@@ -32,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PipelineOrchestrator {
   private final Map<UUID, UserQueryDto> userQueryInProcessing = new ConcurrentHashMap<>();
   private final Map<UUID, SearchResponseDto> responsesQueryInProcessing = new ConcurrentHashMap<>();
+  private final Object pipelineLock = new Object();
 
   private final Crawler crawler;
   private final TextExtractor textExtractor;
@@ -44,6 +45,7 @@ public class PipelineOrchestrator {
 
   public void initResponseProcessing(MessageUserQueryDto messageDto) {
    var userQueryDto = userQueryMapper.mapMessageToDto(messageDto);
+   log.info("PIPELINE: crawling {}", messageDto);
 
     userQueryInProcessing.put(userQueryDto.getSearchQueryId(), userQueryDto);
     var responses = userQueryDto.getSearchResponses()
@@ -65,21 +67,25 @@ public class PipelineOrchestrator {
 
   @EventListener
   void finishDownloadContentListener(FinishDownloadContentEvent event) {
+    log.info("PIPELINE: FinishDownloadContentEvent {}", event.getContext().getSearchResponse().getSearchResponseId());
     textExtractor.initProcessing(event.getContext());
   }
 
   @EventListener
   void finisCleanContentListener(FinishCleanContentEvent event) {
+    log.info("PIPELINE: FinishCleanContentEvent {}", event.getSearchResponseDto().getSearchResponse().getSearchResponseId());
     chunkSplitter.initProcessing(event.getSearchResponseDto());
   }
 
   @EventListener
   void finishSplitChunkEventListener(FinishSplitChunksEvent event) {
+    log.info("PIPELINE: FinishSplitChunksEvent {}", event.getDtoWithChunks().getSearchResponse().getSearchResponseId());
     summariser.initProcessing(event.getDtoWithChunks());
   }
 
   @EventListener
   void summaryEventListener(SummaryEvent summaryEvent) {
+    log.info("PIPELINE: SummaryEvent {}", summaryEvent.getSearchDto().getSearchResponse().getSearchResponseId());
     var dto = summaryEvent.getSearchDto();
     var responses = getAllResponsesWithUrl(dto.getSearchResponse().getUrl());
     setResponseQueryStatus(responses, SearchResponseDtoStatus.PROCESSED);
@@ -87,11 +93,16 @@ public class PipelineOrchestrator {
       response.setContent(dto.getContent());
     });
 
-    analyzeProcessedQueries();
+    synchronized (pipelineLock) {
+      analyzeProcessedQueries();
+      log.warn("USER QUERY {}", userQueryInProcessing);
+
+    }
   }
 
   @EventListener
   void finishAnalysisEventListener(FinishAnalysisEvent event) {
+    log.info("PIPELINE: FinishAnalysisEvent {}", event.getDto().getSearchQueryId());
     var dto = event.getDto();
     userQueryInProcessing.remove(dto.getSearchQueryId());
     SearchQueryOutboxMessage message;
@@ -106,33 +117,36 @@ public class PipelineOrchestrator {
 
   @EventListener
   void processingErrorListener(ResponseProcessingErrorEvent event) {
-    var errorMessage = event.getMessage();
-    var url = event.getUrl();
+    synchronized (pipelineLock) {
+      log.info("PIPELINE: ResponseProcessingErrorEvent {}", event.getSearchResponseId());
+      var errorMessage = event.getMessage();
+      var url = event.getUrl();
 
-    var responses = getAllResponsesWithUrl(url);
-    setResponseQueryStatus(responses, SearchResponseDtoStatus.ERROR);
-    var outboxMessages = responses.stream().map(response ->
-      searchResponseMessageService.createOutboxRequestError(response.getSearchResponse().getSearchResponseId(), errorMessage)
-    ).toList();
-    searchResponseMessageService.saveAll(outboxMessages);
-
-    var failedQueries = userQueryInProcessing
-      .values()
-      .stream()
-      .filter(query ->
-        query.getSearchResponses().stream().allMatch(response -> response.getStatus() == SearchResponseDtoStatus.ERROR)
+      var responses = getAllResponsesWithUrl(url);
+      setResponseQueryStatus(responses, SearchResponseDtoStatus.ERROR);
+      var outboxMessages = responses.stream().map(response ->
+        searchResponseMessageService.createOutboxRequestError(response.getSearchResponse().getSearchResponseId(), errorMessage)
       ).toList();
+      searchResponseMessageService.saveAll(outboxMessages);
 
-    failedQueries.forEach(query -> {
-      userQueryInProcessing.remove(query.getSearchQueryId());
-      var analysisDto = new UserQueryAnalysisDto();
-      analysisDto.setUserId(query.getUserId());
-      analysisDto.setSearchQueryId(query.getSearchQueryId());
+      var failedQueries = userQueryInProcessing
+        .values()
+        .stream()
+        .filter(query ->
+          query.getSearchResponses().stream().allMatch(response -> response.getStatus() == SearchResponseDtoStatus.ERROR)
+        ).toList();
 
-      searchQueryMessageService.createQueryOutboxErrorMessage(analysisDto, "Обработка всех ответов от яндекса завершился ошибкой!");
-    });
+      failedQueries.forEach(query -> {
+        userQueryInProcessing.remove(query.getSearchQueryId());
+        var analysisDto = new UserQueryAnalysisDto();
+        analysisDto.setUserId(query.getUserId());
+        analysisDto.setSearchQueryId(query.getSearchQueryId());
+        searchQueryMessageService.createQueryOutboxErrorMessage(analysisDto, "Обработка всех ответов от яндекса завершился ошибкой!");
+      });
 
-    analyzeProcessedQueries();
+      analyzeProcessedQueries();
+      log.warn("USER QUERY {}", userQueryInProcessing);
+    }
   }
 
   private List<SearchResponseDtoWithContent> getAllResponsesWithUrl(String url) {

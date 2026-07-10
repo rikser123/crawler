@@ -25,7 +25,7 @@ public class CrawlerResponseExtractor implements ResponseExtractor<String> {
     var maxSizeInBytes = fetchConfigProperties.getMaxBodySize();
     var content = new StringBuilder();
 
-    try (var reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
+    try (var reader = new BufferedReader(new InputStreamReader(body))) {
         var totalSize = 0;
         char[] buffer = new char[8192];
         int charsRead;
