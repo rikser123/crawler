@@ -94,7 +94,7 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     mockitoAgent("org.mockito:mockito-core") { isTransitive = false }
     annotationProcessor("org.mapstruct:mapstruct-processor:1.5.5.Final")
-    implementation("rikser123:bundle:0.0.137")
+    implementation("rikser123:bundle:0.0.138")
     implementation("org.apache.tika:tika-core:3.2.2")
     implementation("org.apache.lucene:lucene-core:9.10.0")
     implementation("org.apache.lucene:lucene-queryparser:9.10.0")

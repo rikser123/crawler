@@ -29,7 +29,7 @@ bundle:
     enabled: false
   kafka:
     enabled: false
-    kafkaUrl: http://localhost:9092
+    kafka-url: http://localhost:9092
     user: user
     password: password
 
@@ -57,3 +57,4 @@ bothub:
   url: http://localhost:8081
   summary_model: deepseek-v4-flash
   analysis_model: deepseek-v4-pro
+  timeout: 60
