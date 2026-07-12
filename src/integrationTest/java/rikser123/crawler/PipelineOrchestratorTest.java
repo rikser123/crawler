@@ -20,6 +20,7 @@ import rikser123.crawler.service.PipelineOrchestrator;
 import rikser123.crawler.service.SearchQueryMessageService;
 import rikser123.crawler.service.SearchResponseMessageService;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -346,6 +347,33 @@ public class PipelineOrchestratorTest extends BaseConfig {
           assertThat(arg.getAnalysis()).isEqualTo(analysis);
           return true;
         }));
+      });
+  }
+
+  @Test
+
+  void shouldClearOutdatedQueries() throws IllegalAccessException, NoSuchMethodException, InvocationTargetException, InterruptedException, NoSuchFieldException {
+    var messageDto = createMessageDto();
+    var delayField = PipelineOrchestrator.class.getDeclaredField("clearDelay");
+    delayField.setAccessible(true);
+    delayField.set(pipelineOrchestrator, -1);
+    delayField.setAccessible(false);
+
+    pipelineOrchestrator.initResponseProcessing(messageDto);
+    Thread.sleep(500);
+    var cleanUp = PipelineOrchestrator.class.getDeclaredMethod("cleanUp");
+    cleanUp.setAccessible(true);
+    cleanUp.invoke(pipelineOrchestrator);
+    cleanUp.setAccessible(false);
+
+    await().atMost(5, TimeUnit.SECONDS)
+      .pollInterval(100, TimeUnit.MILLISECONDS)
+      .untilAsserted(() -> {
+        verify(searchQueryMessageService, atLeastOnce()).createQueryOutboxErrorMessage(argThat(arg -> {
+
+          assertThat(arg.getSearchQueryId()).isEqualTo(messageDto.getSearchQueryId());
+          return true;
+        }), any());
       });
   }
 

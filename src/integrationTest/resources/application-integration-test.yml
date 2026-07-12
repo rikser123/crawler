@@ -44,6 +44,7 @@ fetch:
   max-body-size: 512 000
   chunk-size: 2000
   word-overlap-count: 200
+  clear-delay: 300
 
 kafka:
   scheduler-delay: PT10S

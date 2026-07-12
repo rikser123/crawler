@@ -19,4 +19,5 @@ public class FetchConfigProperties {
   private int maxBodySize;
   private int chunkSize;
   private int wordOverlapCount;
+  private int clearDelay;
 }
