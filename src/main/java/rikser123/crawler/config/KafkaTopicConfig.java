@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class KafkaTopicConfig {
   public static final String QUERY_RESULT_TOPIC = "QUERY_RESULT";
-  public static final String QUERY_ANALYSIS_TOPIC = "QUERY_ANALYSIS_TOPIC";
+  public static final String QUERY_ANALYSIS_TOPIC = "QUERY_ANALYSIS";
 
   @Bean
   public NewTopic queryResult() {

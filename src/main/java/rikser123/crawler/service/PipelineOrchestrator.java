@@ -107,12 +107,14 @@ public class PipelineOrchestrator {
 
   @EventListener
   void summaryEventListener(SummaryEvent summaryEvent) {
-    log.info("PIPELINE: SummaryEvent {}", summaryEvent.getDto().getSearchResponse().getSearchResponseId());
-    var dto = summaryEvent.getDto();
-    var responses = getAllResponsesWithUrl(dto.getSearchResponse().getUrl());
+    var searchResponse = summaryEvent.getDto().getSearchResponse();
+    log.info("PIPELINE: SummaryEvent {}", searchResponse.getSearchResponseId());
+
+    var responses = getAllResponsesWithUrl(searchResponse.getUrl());
     setResponseQueryStatus(responses, QueryResponseDtoStatus.PROCESSED);
+    searchResponseMessageService.createOutboxSuccessMessage(searchResponse.getSearchResponseId());
     responses.forEach(response -> {
-      response.setContent(dto.getContent());
+      response.setContent(summaryEvent.getDto().getContent());
     });
 
     synchronized (pipelineLock) {

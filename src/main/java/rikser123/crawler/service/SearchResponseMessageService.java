@@ -21,6 +21,14 @@ public class SearchResponseMessageService extends OutboxMessageService<SearchRes
     super(searchResponseOutboxMessageRepository, outboxStatusMatrix);
   }
 
+  public SearchResponseOutboxMessage createOutboxSuccessMessage(UUID requestResultId) {
+    var messageDto = new MessageQueryResponseDtoOutbox();
+    messageDto.setSearchResponseId(requestResultId);
+    messageDto.setStatus(QueryResponseStatus.PROCESSED);
+
+    return createOutboxMessage(messageDto);
+  }
+
   public SearchResponseOutboxMessage createOutboxRequestError(UUID requestResultId, String message) {
     var messageDto = new MessageQueryResponseDtoOutbox();
     messageDto.setSearchResponseId(requestResultId);
@@ -30,6 +38,10 @@ public class SearchResponseMessageService extends OutboxMessageService<SearchRes
     error.setMessage(message);
     messageDto.setError(error);
 
+    return createOutboxMessage(messageDto);
+  }
+
+  private SearchResponseOutboxMessage createOutboxMessage(MessageQueryResponseDtoOutbox messageDto) {
     var requestOutboxMessage = new SearchResponseOutboxMessage();
     requestOutboxMessage.setDto(messageDto);
     requestOutboxMessage.setStatus(OutboxMessageStatus.CREATED);
