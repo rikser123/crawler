@@ -10,41 +10,82 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class PrometheusMetrics {
   private final MeterRegistry meterRegistry;
-  private Counter totalRequests;
-  private Counter cacheHits;
-  private Counter successRequests;
-  private Counter failRequests;
+  private Counter userSearchQuery;
+  private Counter queryResponse;
+  private Counter finishDownload;
+  private Counter cleanContent;
+  private Counter splitChunks;
+  private Counter summary;
+  private Counter querySuccess;
+  private Counter queryFail;
+  private Counter failResponse;
 
   @PostConstruct
   void init() {
-    totalRequests = Counter.builder("requests.total")
-      .description("Total number of requests")
+    userSearchQuery = Counter.builder("query.total")
+      .description("Total number of user query")
       .register(meterRegistry);
-    cacheHits = Counter.builder("requests.cache")
-      .description("Number of requests from cache")
+    querySuccess = Counter.builder("query.success")
+      .description("Total of success query")
       .register(meterRegistry);
-    successRequests = Counter.builder("requests.success")
-      .description("Number of success requests")
+    queryFail = Counter.builder("query.fail")
+      .description("Total of fail query")
       .register(meterRegistry);
-    failRequests = Counter.builder("requests.fail")
+
+    queryResponse = Counter.builder("searchQueryResponse.total")
+      .description("Total number of search query response")
+      .register(meterRegistry);
+    finishDownload = Counter.builder("searchQueryResponse.download")
+      .description("Number of downloaded requests")
+      .register(meterRegistry);
+    cleanContent = Counter.builder("searchQueryResponse.cleanContent")
+      .description("Number of clean content requests")
+      .register(meterRegistry);
+    splitChunks = Counter.builder("searchQueryResponse.splitChunks")
+      .description("Number of split chunks requests")
+      .register(meterRegistry);
+    summary = Counter.builder("searchQueryResponse.summary")
+      .description("Number of summary requests")
+      .register(meterRegistry);
+    failResponse = Counter.builder("searchQueryResponse.fail")
       .description("Number of fail requests")
       .register(meterRegistry);
   }
 
-  public void incrementTotal() {
-    totalRequests.increment();
+  public void incrementSearchQuery() {
+    userSearchQuery.increment();
   }
 
-  public void incrementCache() {
-    cacheHits.increment();
+  public void incrementQueryResponse() {
+    queryResponse.increment();
   }
 
-  public void incrementSuccess() {
-    successRequests.increment();
+  public void incrementFinishDownload() {
+    finishDownload.increment();
   }
 
-  public void incrementFail() {
-    failRequests.increment();
+  public void incrementCleanContent() {
+    cleanContent.increment();
+  }
+
+  public void incrementSplitChunks() {
+    splitChunks.increment();
+  }
+
+  public void incrementSummary() {
+    summary.increment();
+  }
+
+  public void incrementSuccessQuery() {
+    querySuccess.increment();
+  }
+
+  public void incrementFailQuery() {
+    queryFail.increment();
+  }
+
+  public void incrementFailResponse() {
+    failResponse.increment();
   }
 }
 

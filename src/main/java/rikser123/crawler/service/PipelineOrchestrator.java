@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
+import rikser123.crawler.component.PrometheusMetrics;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
 import rikser123.crawler.dto.queryResponse.QueryResponseDtoStatus;
@@ -52,6 +53,7 @@ public class PipelineOrchestrator {
   private final SearchResponseMessageService searchResponseMessageService;
   private final UserQueryMapper userQueryMapper;
   private final SearchQueryMessageService searchQueryMessageService;
+  private final PrometheusMetrics prometheusMetrics;
 
   @Value("${fetch.clear-delay}")
   private int clearDelay;
@@ -69,6 +71,8 @@ public class PipelineOrchestrator {
     queryTimeDto.setStartTime(Instant.now());
     queryTimeDto.setDto(userQueryDto);
     userQueryInProcessing.put(userQueryDto.getSearchQueryId(), queryTimeDto);
+    prometheusMetrics.incrementSearchQuery();
+
     var responses = userQueryDto.getSearchResponses()
       .stream()
       .map(SearchResponseDtoWithContent::getSearchResponse)
@@ -83,6 +87,7 @@ public class PipelineOrchestrator {
       if (!isResponseInProcessing) {
         responsesQueryInProcessing.put(response.getSearchResponseId(), response);
         crawler.initProcessing(response);
+        prometheusMetrics.incrementQueryResponse();
       }
     });
   }
@@ -91,18 +96,21 @@ public class PipelineOrchestrator {
   void finishDownloadContentListener(FinishDownloadContentEvent event) {
     log.info("PIPELINE: FinishDownloadContentEvent {}", event.getDto().getSearchResponse().getSearchResponseId());
     textExtractor.initProcessing(event.getDto());
+    prometheusMetrics.incrementFinishDownload();
   }
 
   @EventListener
   void finisCleanContentListener(FinishCleanContentEvent event) {
     log.info("PIPELINE: FinishCleanContentEvent {}", event.getDto().getSearchResponse().getSearchResponseId());
     chunkSplitter.initProcessing(event.getDto());
+    prometheusMetrics.incrementCleanContent();
   }
 
   @EventListener
   void finishSplitChunkEventListener(FinishSplitChunksEvent event) {
     log.info("PIPELINE: FinishSplitChunksEvent {}", event.getDto().getSearchResponse().getSearchResponseId());
     summariser.initProcessing(event.getDto());
+    prometheusMetrics.incrementSplitChunks();
   }
 
   @EventListener
@@ -116,6 +124,7 @@ public class PipelineOrchestrator {
     responses.forEach(response -> {
       response.setContent(summaryEvent.getDto().getContent());
     });
+    prometheusMetrics.incrementSummary();
 
     synchronized (pipelineLock) {
       analyzeProcessedQueries();
@@ -131,8 +140,10 @@ public class PipelineOrchestrator {
 
     if (!Objects.isNull(dto.getError())) {
       message = searchQueryMessageService.createQueryOutboxErrorMessage(dto, dto.getError().getMessage());
+      prometheusMetrics.incrementFailQuery();
     } else {
       message = searchQueryMessageService.createQueryOutboxSuccessMessage(dto);
+      prometheusMetrics.incrementSuccessQuery();
     }
     searchQueryMessageService.save(message);
   }
@@ -147,6 +158,7 @@ public class PipelineOrchestrator {
       var responses = getAllResponsesWithUrl(url);
       setResponseQueryStatus(responses, QueryResponseDtoStatus.ERROR);
       saveOutboxResponseMessages(responses, errorMessage);
+      prometheusMetrics.incrementFailResponse();
 
       var failedQueries = userQueryInProcessing
         .values()
