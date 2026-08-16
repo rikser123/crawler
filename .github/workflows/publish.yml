@@ -11,6 +11,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PAT_TOKEN: ${{ secrets.PAT }}
     steps:
       - uses: actions/checkout@v4
 
