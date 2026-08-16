@@ -57,7 +57,7 @@ public class QueryAnalizer implements PipelineStep<UserQueryDto> {
     log.info("Shutting down QueryAnalizer...");
     executors.shutdown();
     try {
-      if (!executors.awaitTermination(30, TimeUnit.SECONDS)) {
+      if (!executors.awaitTermination(10, TimeUnit.SECONDS)) {
         executors.shutdownNow();
       }
     } catch (InterruptedException exception) {

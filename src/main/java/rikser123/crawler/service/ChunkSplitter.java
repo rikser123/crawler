@@ -56,7 +56,7 @@ public class ChunkSplitter implements PipelineStep<SearchResponseDtoWithContent>
     log.info("Shutting down ChunkSplitter...");
     executors.shutdown();
     try {
-      if (!executors.awaitTermination(30, TimeUnit.SECONDS)) {
+      if (!executors.awaitTermination(10, TimeUnit.SECONDS)) {
         executors.shutdownNow();
       }
     } catch (InterruptedException e) {
