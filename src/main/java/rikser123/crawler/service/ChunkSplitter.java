@@ -1,76 +1,29 @@
 package rikser123.crawler.service;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
-import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithChunks;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
-import rikser123.crawler.dto.event.FinishSplitChunksEvent;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class ChunkSplitter implements PipelineStep<SearchResponseDtoWithContent> {
+public class ChunkSplitter {
   private static final String PARAGRAPH_BORDER = "\\n\\n+|\\n";
   private static final String SENTENCE_BORDER = "(?<=[.!?…])\\s+";
   private static final int CHUNK_GAP = 40;
 
-  private final BlockingQueue<SearchResponseDtoWithContent> queue = new LinkedBlockingQueue<>();
-  private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
-
   private final FetchConfigProperties fetchConfigProperties;
-  private final EventPublisher eventPublisher;
 
-  @PostConstruct
-  void init() {
-    executors.execute(() -> {
-      while (true) {
-        try {
-          var request = queue.take();
-          executors.execute(() -> split(request));
-        }  catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-          break;
-        }
-      }
-    });
-  }
-
-  @PreDestroy
-  void shutdown() {
-    log.info("Shutting down ChunkSplitter...");
-    executors.shutdown();
-    try {
-      if (!executors.awaitTermination(10, TimeUnit.SECONDS)) {
-        executors.shutdownNow();
-      }
-    } catch (InterruptedException e) {
-      executors.shutdownNow();
-      Thread.currentThread().interrupt();
-    }
-  }
-
-  @Override
-  public void initProcessing(SearchResponseDtoWithContent responseDto) {
-    queue.add(responseDto);
-  }
-
-  private void split(SearchResponseDtoWithContent searchResponse) {
+  public SearchResponseDtoWithChunks split(SearchResponseDtoWithContent searchResponse) {
     try {
       var chunkSize = fetchConfigProperties.getChunkSize();
       var overlapCount = fetchConfigProperties.getWordOverlapCount();
@@ -79,14 +32,12 @@ public class ChunkSplitter implements PipelineStep<SearchResponseDtoWithContent>
 
       if (StringUtils.isEmpty(text)) {
         log.warn("Переданный тест пустой! {}", searchResponse.getSearchResponse().getSearchResponseId());
-        eventPublisher.publishResponseProcessingErrorEvent(searchResponse.getSearchResponse(), null);
-        return;
+        throw new IllegalStateException("Переданный тест пустой!");
       }
 
       if (text.length() < chunkSize + overlapCount) {
         chunks.add(text);
-        publishFinishSplitChunksEvent(searchResponse.getSearchResponse(), chunks);
-        return;
+        return getSplitChunksDto(searchResponse.getSearchResponse(), chunks);
       }
 
       var paragraphs = text.split(PARAGRAPH_BORDER);
@@ -116,13 +67,10 @@ public class ChunkSplitter implements PipelineStep<SearchResponseDtoWithContent>
         chunks.add(currentChunk.toString());
       }
 
-      publishFinishSplitChunksEvent(searchResponse.getSearchResponse(), chunks);
+      return getSplitChunksDto(searchResponse.getSearchResponse(), chunks);
     } catch (Exception e) {
       log.warn("Error during splitting html", e);
-      eventPublisher.publishResponseProcessingErrorEvent(
-        searchResponse.getSearchResponse(),
-        "Не удалось разрезать текст на чанки " + e.getMessage()
-      );
+      throw new IllegalStateException("Не удалось разрезать текст на чанки ");
     }
   }
 
@@ -186,12 +134,10 @@ public class ChunkSplitter implements PipelineStep<SearchResponseDtoWithContent>
     return chunk.length() + text.length() - CHUNK_GAP < chunkSize;
   }
 
-  private void publishFinishSplitChunksEvent(QueryResponseDto queryResponseDto, List<String> chunks) {
-    var event = new FinishSplitChunksEvent();
-    var eventDto = new SearchResponseDtoWithChunks();
-    eventDto.setSearchResponse(queryResponseDto);
-    eventDto.setChunks(chunks);
-    event.setDto(eventDto);
-    eventPublisher.publishEvent(event);
+  private SearchResponseDtoWithChunks getSplitChunksDto(QueryResponseDto queryResponseDto, List<String> chunks) {
+    var dto = new SearchResponseDtoWithChunks();
+    dto.setSearchResponse(queryResponseDto);
+    dto.setChunks(chunks);
+    return dto;
   }
 }

@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import rikser123.crawler.dto.bothub.BothubRequestDto;
-import rikser123.crawler.feign.BothubClient;
+import rikser123.crawler.dto.deepseek.DeepSeekRequestDto;
+import rikser123.crawler.feign.DeepSeekClient;
 
 import java.util.List;
 import java.util.Objects;
@@ -13,17 +13,17 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class BothubService {
-  private final BothubClient bothubClient;
+public class DeepSeekService {
+  private final DeepSeekClient deepSeekClient;
 
-  @Value("${bothub.token}")
-  private String bothubToken;
+  @Value("${deepseek.token}")
+  private String deepSeekToken;
 
-  @Value("${bothub.summary_model}")
-  private String bothubSummaryModel;
+  @Value("${deepseek.summary_model}")
+  private String deepSeekSummaryModel;
 
-  @Value("${bothub.analysis_model}")
-  private String bothubAnalysisModel;
+  @Value("${deepseek.analysis_model}")
+  private String deepSeekAnalysisModel;
 
   public String getSummary(List<String> chunks) {
     var prompt = String.format("""
@@ -38,7 +38,7 @@ public class BothubService {
       Текст статьи:
       %s
       """, String.join(", ", chunks));
-    return fetchModelRequest(prompt, bothubSummaryModel);
+    return fetchModelRequest(prompt, deepSeekSummaryModel);
   }
 
   public String getQueryAnalysis(String userQuery, List<String> summaries) {
@@ -69,24 +69,24 @@ public class BothubService {
       ## Откуда информация
       [Краткое указание источников]
       """, userQuery, String.join(", ", summaries));
-    return fetchModelRequest(promt, bothubAnalysisModel);
+    return fetchModelRequest(promt, deepSeekAnalysisModel);
   }
 
   private String fetchModelRequest(String prompt, String model) {
-    var requestDto = new BothubRequestDto();
+    var requestDto = new DeepSeekRequestDto();
     requestDto.setModel(model);
-    requestDto.setInput(prompt);
+    requestDto.setMessages(List.of(new DeepSeekRequestDto.Message("user", prompt)));
 
     try {
-      var response = bothubClient.getResponses(requestDto, "Bearer " + bothubToken);
+      var response = deepSeekClient.getResponses(requestDto, "Bearer " + deepSeekToken);
       if (!Objects.isNull(response.getError())) {
-        log.warn("Не удалось получить ответ от {}", model);
+        log.warn("Не удалось получить ответ от", model);
         throw new IllegalStateException("Не удалось получить ответ модели");
       }
-      return response.getOutputText();
+      return response.getContent();
 
     } catch (Exception e) {
-      log.warn("Не удалось получить ответ от {}", model);
+      log.warn("Не удалось получить ответ от {}", model, e);
       throw new IllegalStateException("Не удалось получить ответ модели");
     }
 

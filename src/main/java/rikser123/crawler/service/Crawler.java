@@ -1,8 +1,6 @@
 package rikser123.crawler.service;
 
 import crawlercommons.robots.SimpleRobotRulesParser;
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -12,13 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.CrawlerResponseExtractor;
-import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
-import rikser123.crawler.dto.queryResponse.DelayedQueryResponseDtoCrawler;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
-import rikser123.crawler.dto.queryResponse.QueryResponseDtoCrawler;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
-import rikser123.crawler.dto.event.FinishDownloadContentEvent;
 import rikser123.crawler.exception.BigSizeContentException;
 import rikser123.crawler.utils.CaptchaUtils;
 
@@ -26,111 +20,84 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.Random;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.DelayQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
 
 @RequiredArgsConstructor
 @Service
 @Slf4j
-public class Crawler implements PipelineStep<QueryResponseDto> {
+public class Crawler {
   private static final Random random = new Random();
   private static final Integer RANDOM_BOUND = 30;
-
-  private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
-  private final BlockingQueue<QueryResponseDtoCrawler> queue = new LinkedBlockingQueue<>();
-  private final DelayQueue<DelayedQueryResponseDtoCrawler> delayQueue = new DelayQueue<>();
-  private Semaphore queueSemaphore;
-  private Semaphore delayQueueSemaphore;
 
   private final FetchConfigProperties fetchProperties;
   private final CrawlerResponseExtractor crawlerResponseExtractor;
   private final RestTemplate restTemplate;
   private final RedisCacheService redisCacheService;
-  private final EventPublisher eventPublisher;
+  private ConcurrentHashMap<String, AtomicInteger> processedResponses = new ConcurrentHashMap<>();
 
-  @PostConstruct
-  void init() {
-    queueSemaphore = new Semaphore(fetchProperties.getQueueLimit());
-    delayQueueSemaphore = new Semaphore(fetchProperties.getTimeoutQueueLimit());
+  public SearchResponseDtoWithContent download(QueryResponseDto queryResponseDto) {
+    var domain = queryResponseDto.getDomain();
+    processedResponses.computeIfAbsent(domain, k -> new AtomicInteger(0)).incrementAndGet();
 
-    initThreadPool(queue, queueSemaphore, "MAIN");
-    initThreadPool(delayQueue, delayQueueSemaphore, "DELAY");
-  }
-
-  @PreDestroy
-  void shutdown() {
-    executors.shutdown();
     try {
-      if (!executors.awaitTermination(10, TimeUnit.SECONDS)) {
-        executors.shutdownNow();
+      var sameDomainCount = processedResponses.get(domain).get();
+      if (sameDomainCount > 1) {
+        var delay = getDelay(queryResponseDto);
+        Thread.sleep(delay);
       }
-    } catch (InterruptedException e) {
-      executors.shutdownNow();
+    } catch (Exception e) {
       Thread.currentThread().interrupt();
     }
-  }
 
-  @Override
-  public void initProcessing(QueryResponseDto resultDto) {
-    var requestDto = new QueryResponseDtoCrawler();
-    requestDto.setAttempt(0);
-    requestDto.setSearchResponse(resultDto);
+    var attempt = 0;
 
-    var sameDomainCount = queue.stream()
-      .filter(response ->
-        response.getSearchResponse().getDomain().equals(resultDto.getDomain()))
-      .count();
+    while (attempt < fetchProperties.getMaxDownloadAttempt()) {
+      attempt += 1;
+      var delay = 0;
 
-    if (sameDomainCount > 0) {
-      addDelayProcess(requestDto);
-    } else {
-      queue.add(requestDto);
-    }
-  }
+      try {
+        var content = downloadLinkContent(queryResponseDto);
 
-  private <T extends QueryResponseDtoCrawler> void initThreadPool(BlockingQueue<T> queue, Semaphore semaphore, String queueType) {
-    executors.execute(() -> {
-      while (true) {
-        try {
-          var request = queue.take();
+        if (!Objects.isNull(content)) {
+          var dto = new SearchResponseDtoWithContent();
+          dto.setSearchResponse(queryResponseDto);
+          dto.setContent(content);
+          return dto;
+        }
 
-          executors.execute(() -> {
-            try {
-              var content = downloadLinkContent(request, semaphore);
-              if (!Objects.isNull(content)) {
-                var requestWithContent = prepareRequestsWithContent(request, content);
-                publishFinishDownloadContentEvent(requestWithContent);
-              }
-            } catch (IllegalStateException e) {
-              log.error("IllegalStateException in download thread: {}, url={}", e.getMessage(), request.getSearchResponse().getUrl(), e);
-              eventPublisher.publishResponseProcessingErrorEvent(request.getSearchResponse(), e.getMessage());
-            }
+        delay = getDelay(queryResponseDto);
+      } catch (IllegalStateException e) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(e.getMessage(), e);
+      } catch (Exception e) {
+        if (attempt >= fetchProperties.getMaxDownloadAttempt()) {
+          throw new IllegalStateException(e.getMessage(), e);
+        }
+        delay = getDelay(queryResponseDto);
+      } finally {
+        if (delay > 0) {
+          try {
+            Thread.sleep(delay);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
+        } else {
+          processedResponses.compute(domain, (key, value) -> {
+            if (value == null) return null;
+            int newValue = value.decrementAndGet();
+            return newValue == 0 ? null : value;
           });
-        } catch (InterruptedException e) {
-          log.warn("Thread pool consumer for queue type {} was interrupted", queueType);
-          Thread.currentThread().interrupt();
-          break;
         }
       }
-    });
+    }
+
+    throw new IllegalStateException("Превышен лимит попыток скачивания!");
   }
 
-  private <T extends QueryResponseDtoCrawler> String downloadLinkContent(
-    T requestDto,
-    Semaphore semaphore
-    ) {
-    var link = requestDto.getSearchResponse().getUrl();
-    var currentAttempt = requestDto.getAttempt();
-
-    if (currentAttempt >= fetchProperties.getMaxDownloadAttempt()) {
-      log.warn("Превышен лимит попыток скачивания {}, maxAttempt={}", link, fetchProperties.getMaxDownloadAttempt());
-      throw new IllegalStateException("Превышен лимит попыток скачивания!");
-    }
+  private String downloadLinkContent(QueryResponseDto resultDto) {
+    var link = resultDto.getUrl();
 
     var isAllowed = isParsingAllowed(link);
 
@@ -140,8 +107,6 @@ public class Crawler implements PipelineStep<QueryResponseDto> {
     }
 
     try {
-      semaphore.acquire();
-
       var response = restTemplate.execute(
         link,
         HttpMethod.GET,
@@ -155,7 +120,6 @@ public class Crawler implements PipelineStep<QueryResponseDto> {
       var isCaptcha = CaptchaUtils.isCaptcha(response);
       if (isCaptcha) {
         log.warn("Обнаружена капча по ссылке {}, перемещено в очередь для повторного запроса", link);
-        addDelayProcess(requestDto);
         return null;
       }
 
@@ -166,34 +130,23 @@ public class Crawler implements PipelineStep<QueryResponseDto> {
       throw new IllegalStateException("Слишком большой размер скачиваемой страницы!");
     } catch (Exception e) {
       log.warn("Проблемы со скачиванием по ссылке {}, error={}: {}", link, e.getClass().getSimpleName(), e.getMessage(), e);
-      addDelayProcess(requestDto);
       return null;
-    } finally {
-      semaphore.release();
     }
   }
 
-  private <T extends QueryResponseDtoCrawler> void addDelayProcess(T requestDto) {
-    var delayedProcess = new DelayedQueryResponseDtoCrawler();
-    delayedProcess.setSearchResponse(requestDto.getSearchResponse());
-    delayedProcess.setAttempt(requestDto.getAttempt() + 1);
-
+  private int getDelay(QueryResponseDto queryResponseDto) {
     var randomPercent = random.nextInt(RANDOM_BOUND);
     var repeatDownloadDelay = fetchProperties.getRepeatDownloadDelay();
-    var delayTime = repeatDownloadDelay + (repeatDownloadDelay / 100 * randomPercent);
+    var shift = repeatDownloadDelay / 100 * randomPercent;
+    var delayTime = repeatDownloadDelay + shift;
 
-    var sameDomainCount = delayQueue.stream()
-      .filter(response -> response.getSearchResponse().getDomain()
-        .equals(requestDto.getSearchResponse().getDomain()))
-      .count();
+    var sameDomainCount = processedResponses.get(queryResponseDto.getDomain()).get();
 
-    if (sameDomainCount > 0) {
-      delayTime += repeatDownloadDelay * sameDomainCount;
+    if (sameDomainCount > 1) {
+      delayTime += repeatDownloadDelay + (shift * sameDomainCount);
     }
 
-    delayedProcess.setDelayInSeconds(delayTime);
-
-    delayQueue.add(delayedProcess);
+    return delayTime;
   }
 
   private boolean isParsingAllowed(String link) {
@@ -253,20 +206,4 @@ public class Crawler implements PipelineStep<QueryResponseDto> {
     }
   }
 
-  private <T extends QueryResponseDtoCrawler> SearchResponseDtoWithContent prepareRequestsWithContent(
-    T request,
-    String content
-  ) {
-    var requestWithContent = new SearchResponseDtoWithContent();
-    requestWithContent.setSearchResponse(request.getSearchResponse());
-    requestWithContent.setContent(content);
-
-    return requestWithContent;
-  }
-
-  private void publishFinishDownloadContentEvent(SearchResponseDtoWithContent content) {
-    var finishEvent = new FinishDownloadContentEvent();
-    finishEvent.setDto(content);
-    eventPublisher.publishEvent(finishEvent);
-  }
 }

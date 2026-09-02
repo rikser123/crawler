@@ -1,7 +1,5 @@
 package rikser123.crawler.service;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -15,105 +13,51 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.springframework.stereotype.Service;
-import rikser123.crawler.component.EventPublisher;
 import rikser123.crawler.config.FetchConfigProperties;
-import rikser123.crawler.dto.queryResponse.DelayedQueryResponseDtoWithChunks;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithChunks;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
-import rikser123.crawler.dto.event.SummaryEvent;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.DelayQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class Summariser implements PipelineStep<SearchResponseDtoWithChunks> {
+public class Summariser {
   private static final int CHUNKS_COUNT = 2;
 
-  private final BlockingQueue<SearchResponseDtoWithChunks> queue = new LinkedBlockingQueue<>();
-  private final DelayQueue<DelayedQueryResponseDtoWithChunks> delayQueue = new DelayQueue<>();
-  private Semaphore queueSemaphore;
-  private Semaphore delayQueueSemaphore;
-  private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
-
-  private final EventPublisher eventPublisher;
   private final FetchConfigProperties fetchProperties;
-  private final BothubService bothubService;
+  private final DeepSeekService deepSeekService;
 
-  @PostConstruct
-  void init() {
-    queueSemaphore = new Semaphore(fetchProperties.getQueueLimit());
-    delayQueueSemaphore = new Semaphore(fetchProperties.getTimeoutQueueLimit());
 
-    initThreadPool(queue, queueSemaphore);
-    initThreadPool(delayQueue, delayQueueSemaphore);
-  }
+  public  SearchResponseDtoWithContent summarise(SearchResponseDtoWithChunks searchResponseDtoWithChunks) {
+    var attempt = 0;
+    var delay = 0;
 
-  @PreDestroy
-  void shutdown() {
-    log.info("Shutting down Summariser...");
-    executors.shutdown();
-    try {
-      if (!executors.awaitTermination(10, TimeUnit.SECONDS)) {
-        executors.shutdownNow();
-      }
-    } catch (InterruptedException e) {
-      executors.shutdownNow();
-      Thread.currentThread().interrupt();
-    }
-  }
-
-  @Override
-  public void initProcessing(SearchResponseDtoWithChunks searchResponseDtoWithChunks) {
-    queue.add(searchResponseDtoWithChunks);
-  }
-
-  private  <T extends SearchResponseDtoWithChunks>void summarise(
-    T searchResponseDtoWithChunks,
-    Semaphore semaphore) {
-    var acquired = false;
-
-    try {
-      semaphore.acquire();
-      acquired = true;
-      var relevantChunks = getRelevantChunks(searchResponseDtoWithChunks);
-      var summary = bothubService.getSummary(relevantChunks);
-      publishSummaryEvent(searchResponseDtoWithChunks.getSearchResponse(), summary);
-    } catch (IllegalStateException e) {
-      var delay = fetchProperties.getRepeatDownloadDelay();
-      var maxAttempt = fetchProperties.getMaxDownloadAttempt();
-
-      var attempt = searchResponseDtoWithChunks.getAttempt() + 1;
-      if (attempt >= maxAttempt) {
-        eventPublisher.publishResponseProcessingErrorEvent(
-          searchResponseDtoWithChunks.getSearchResponse(),
-          "Не удалось определить релевантные чанки"
-        );
-        return;
-      }
-
-      var delayDto = new DelayedQueryResponseDtoWithChunks();
-      delayDto.setDelayInSeconds(delay);
-      delayDto.setSearchResponse(searchResponseDtoWithChunks.getSearchResponse());
-      delayDto.setChunks(searchResponseDtoWithChunks.getChunks());
-      delayDto.setAttempt(attempt);
-      delayQueue.add(delayDto);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-    } finally {
-      if (acquired) {
-        semaphore.release();
+    while (attempt < fetchProperties.getMaxDownloadAttempt()) {
+      try {
+        attempt += 1;
+        var relevantChunks = getRelevantChunks(searchResponseDtoWithChunks);
+        var summary = deepSeekService.getSummary(relevantChunks);
+        return getSummaryDto(searchResponseDtoWithChunks.getSearchResponse(), summary);
+      } catch (IllegalStateException e) {
+        if (attempt >= fetchProperties.getMaxDownloadAttempt()) {
+          throw new IllegalStateException("Не удалось определить релевантные чанки", e);
+        }
+        delay = fetchProperties.getRepeatDownloadDelay();
+      } finally {
+        if (delay > 0) {
+          try {
+            Thread.sleep(delay);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
+        }
       }
     }
+
+    throw new IllegalStateException("Не удалось определить релевантные чанки");
   }
 
   private List<String> getRelevantChunks(SearchResponseDtoWithChunks searchResponseDto) {
@@ -164,26 +108,10 @@ public class Summariser implements PipelineStep<SearchResponseDtoWithChunks> {
     }
   }
 
-  private void publishSummaryEvent(QueryResponseDto queryResponseDto, String summary) {
-    var event = new SummaryEvent();
-    var eventDto = new SearchResponseDtoWithContent();
-    eventDto.setSearchResponse(queryResponseDto);
-    eventDto.setContent(summary);
-    event.setDto(eventDto);
-    eventPublisher.publishEvent(event);
-  }
-
-  private <T extends SearchResponseDtoWithChunks>void initThreadPool(BlockingQueue<T> queue, Semaphore semaphore) {
-    executors.execute(() -> {
-      while (true) {
-        try {
-          var request = queue.take();
-          executors.execute(() -> summarise(request, semaphore));
-        }  catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-          break;
-        }
-      }
-    });
+  private SearchResponseDtoWithContent getSummaryDto(QueryResponseDto queryResponseDto, String summary) {
+    var dto = new SearchResponseDtoWithContent();
+    dto.setSearchResponse(queryResponseDto);
+    dto.setContent(summary);
+    return dto;
   }
 }

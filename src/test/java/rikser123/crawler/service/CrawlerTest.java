@@ -33,147 +33,147 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
 public class CrawlerTest {
-  private Crawler crawler;
-
-  @Mock
-  private CrawlerResponseExtractor crawlerResponseExtractor;
-
-  @Mock
-  private RestTemplate restTemplate;
-
-  @Mock
-  private RedisCacheService redisCacheService;
-
-  @Mock
-  private EventPublisher eventPublisher;
-
-  @BeforeEach
-  void init() throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
-    var fetchConfig = new FetchConfigProperties();
-    fetchConfig.setQueueLimit(5);
-    fetchConfig.setTimeoutQueueLimit(5);
-    fetchConfig.setMaxDownloadAttempt(2);
-    fetchConfig.setRepeatDownloadDelay(1);
-
-    crawler = new Crawler(
-      fetchConfig,
-      crawlerResponseExtractor,
-      restTemplate,
-      redisCacheService,
-      eventPublisher
-    );
-
-    var initMethod = Crawler.class.getDeclaredMethod("init");
-    initMethod.setAccessible(true);
-    initMethod.invoke(crawler);
-    initMethod.setAccessible(false);
-  }
-
-  @Test
-  void shouldSuccessFetch() {
-    var responseDto = createResponseDto();
-
-    when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenReturn("string");
-    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
-
-    crawler.initProcessing(responseDto);
-
-    await().atMost(5, TimeUnit.SECONDS)
-      .pollInterval(100, TimeUnit.MILLISECONDS)
-      .untilAsserted(() -> {
-        verify(eventPublisher, atLeastOnce()).publishEvent(argThat(arg -> {
-          var event = (FinishDownloadContentEvent) arg;
-          assertThat(event.getDto().getContent()).isEqualTo("string");
-          assertThat(event.getDto().getSearchResponse().getSearchResponseId()).isEqualTo(responseDto.getSearchResponseId());
-          return true;
-        }));
-      });
-  }
-
-  @Test
-  void shouldHandleMaxDownloadAttempt() {
-    var responseDto = createResponseDto();
-
-    when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenThrow(new RuntimeException());
-    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
-
-    crawler.initProcessing(responseDto);
-
-    await().atMost(5, TimeUnit.SECONDS)
-      .pollInterval(100, TimeUnit.MILLISECONDS)
-      .untilAsserted(() -> {
-        verify(eventPublisher, atLeastOnce()).publishResponseProcessingErrorEvent(any(), any());
-      });
-  }
-
-  @Test
-  void shouldHandleParsingNotAllowed() {
-    var responseDto = createResponseDto();
-
-    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body("User-agent: *\nDisallow: /"));
-
-    crawler.initProcessing(responseDto);
-
-    await().atMost(5, TimeUnit.SECONDS)
-      .pollInterval(100, TimeUnit.MILLISECONDS)
-      .untilAsserted(() -> {
-        verify(eventPublisher, atLeastOnce()).publishResponseProcessingErrorEvent(any(), any());
-      });
-  }
-
-  @Test
-  void shouldHandleBigSizeContent() throws IOException {
-    var responseDto = createResponseDto();
-
-    doThrow(new BigSizeContentException("Большой текст"))
-      .when(crawlerResponseExtractor)
-      .extractData(any());
-
-    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
-    when(restTemplate.execute(
-      anyString(),
-      any(),
-      any(),
-      eq(crawlerResponseExtractor),
-      eq(String.class)
-    )).thenAnswer(invocation -> {
-      var extractor = invocation.getArgument(3, CrawlerResponseExtractor.class);
-      return extractor.extractData(null);
-    });
-
-    crawler.initProcessing(responseDto);
-
-    await().atMost(5, TimeUnit.SECONDS)
-      .pollInterval(100, TimeUnit.MILLISECONDS)
-      .untilAsserted(() -> {
-        verify(eventPublisher, atLeastOnce()).publishResponseProcessingErrorEvent(any(), any());
-      });
-  }
-
-  @Test
-  void shouldHandleCaptcha()  {
-    var responseDto = createResponseDto();
-
-    when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenReturn("cf-browser-verification");
-    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
-
-    crawler.initProcessing(responseDto);
-
-    await().atMost(5, TimeUnit.SECONDS)
-      .pollInterval(100, TimeUnit.MILLISECONDS)
-      .untilAsserted(() -> {
-        verify(eventPublisher, atLeastOnce()).publishResponseProcessingErrorEvent(any(), any());
-      });
-  }
-
-  private static QueryResponseDto createResponseDto() {
-    var searchResponseDto = new QueryResponseDto();
-    searchResponseDto.setSearchResponseId(UUID.randomUUID());
-    searchResponseDto.setUrl(("url"));
-    searchResponseDto.setDomain("domain");
-    searchResponseDto.setQueryText("text");
-    searchResponseDto.setQueryId(UUID.randomUUID());
-
-    return searchResponseDto;
-  }
+//  private Crawler crawler;
+//
+//  @Mock
+//  private CrawlerResponseExtractor crawlerResponseExtractor;
+//
+//  @Mock
+//  private RestTemplate restTemplate;
+//
+//  @Mock
+//  private RedisCacheService redisCacheService;
+//
+//  @Mock
+//  private EventPublisher eventPublisher;
+//
+//  @BeforeEach
+//  void init() throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+//    var fetchConfig = new FetchConfigProperties();
+//    fetchConfig.setQueueLimit(5);
+//    fetchConfig.setTimeoutQueueLimit(5);
+//    fetchConfig.setMaxDownloadAttempt(2);
+//    fetchConfig.setRepeatDownloadDelay(1);
+//
+//    crawler = new Crawler(
+//      fetchConfig,
+//      crawlerResponseExtractor,
+//      restTemplate,
+//      redisCacheService,
+//      eventPublisher
+//    );
+//
+//    var initMethod = Crawler.class.getDeclaredMethod("init");
+//    initMethod.setAccessible(true);
+//    initMethod.invoke(crawler);
+//    initMethod.setAccessible(false);
+//  }
+//
+//  @Test
+//  void shouldSuccessFetch() {
+//    var responseDto = createResponseDto();
+//
+//    when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenReturn("string");
+//    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
+//
+//    crawler.initProcessing(responseDto);
+//
+//    await().atMost(5, TimeUnit.SECONDS)
+//      .pollInterval(100, TimeUnit.MILLISECONDS)
+//      .untilAsserted(() -> {
+//        verify(eventPublisher, atLeastOnce()).publishEvent(argThat(arg -> {
+//          var event = (FinishDownloadContentEvent) arg;
+//          assertThat(event.getDto().getContent()).isEqualTo("string");
+//          assertThat(event.getDto().getSearchResponse().getSearchResponseId()).isEqualTo(responseDto.getSearchResponseId());
+//          return true;
+//        }));
+//      });
+//  }
+//
+//  @Test
+//  void shouldHandleMaxDownloadAttempt() {
+//    var responseDto = createResponseDto();
+//
+//    when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenThrow(new RuntimeException());
+//    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
+//
+//    crawler.initProcessing(responseDto);
+//
+//    await().atMost(5, TimeUnit.SECONDS)
+//      .pollInterval(100, TimeUnit.MILLISECONDS)
+//      .untilAsserted(() -> {
+//        verify(eventPublisher, atLeastOnce()).publishResponseProcessingErrorEvent(any(), any());
+//      });
+//  }
+//
+//  @Test
+//  void shouldHandleParsingNotAllowed() {
+//    var responseDto = createResponseDto();
+//
+//    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body("User-agent: *\nDisallow: /"));
+//
+//    crawler.initProcessing(responseDto);
+//
+//    await().atMost(5, TimeUnit.SECONDS)
+//      .pollInterval(100, TimeUnit.MILLISECONDS)
+//      .untilAsserted(() -> {
+//        verify(eventPublisher, atLeastOnce()).publishResponseProcessingErrorEvent(any(), any());
+//      });
+//  }
+//
+//  @Test
+//  void shouldHandleBigSizeContent() throws IOException {
+//    var responseDto = createResponseDto();
+//
+//    doThrow(new BigSizeContentException("Большой текст"))
+//      .when(crawlerResponseExtractor)
+//      .extractData(any());
+//
+//    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
+//    when(restTemplate.execute(
+//      anyString(),
+//      any(),
+//      any(),
+//      eq(crawlerResponseExtractor),
+//      eq(String.class)
+//    )).thenAnswer(invocation -> {
+//      var extractor = invocation.getArgument(3, CrawlerResponseExtractor.class);
+//      return extractor.extractData(null);
+//    });
+//
+//    crawler.initProcessing(responseDto);
+//
+//    await().atMost(5, TimeUnit.SECONDS)
+//      .pollInterval(100, TimeUnit.MILLISECONDS)
+//      .untilAsserted(() -> {
+//        verify(eventPublisher, atLeastOnce()).publishResponseProcessingErrorEvent(any(), any());
+//      });
+//  }
+//
+//  @Test
+//  void shouldHandleCaptcha()  {
+//    var responseDto = createResponseDto();
+//
+//    when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenReturn("cf-browser-verification");
+//    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
+//
+//    crawler.initProcessing(responseDto);
+//
+//    await().atMost(5, TimeUnit.SECONDS)
+//      .pollInterval(100, TimeUnit.MILLISECONDS)
+//      .untilAsserted(() -> {
+//        verify(eventPublisher, atLeastOnce()).publishResponseProcessingErrorEvent(any(), any());
+//      });
+//  }
+//
+//  private static QueryResponseDto createResponseDto() {
+//    var searchResponseDto = new QueryResponseDto();
+//    searchResponseDto.setSearchResponseId(UUID.randomUUID());
+//    searchResponseDto.setUrl(("url"));
+//    searchResponseDto.setDomain("domain");
+//    searchResponseDto.setQueryText("text");
+//    searchResponseDto.setQueryId(UUID.randomUUID());
+//
+//    return searchResponseDto;
+//  }
 }

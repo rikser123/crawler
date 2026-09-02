@@ -4,13 +4,15 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.UUID;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserQueryAnalysisDto {
-  private UUID searchQueryId;
+public class QueryAnalysisDto {
   private UUID userId;
-  private String analysis;
+  private UUID searchQueryId;
+  private String queryText;
+  private List<String> texts;
 }

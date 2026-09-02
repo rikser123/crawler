@@ -3,48 +3,32 @@ package rikser123.crawler.service;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.event.EventListener;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
-import rikser123.crawler.component.PrometheusMetrics;
+import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
-import rikser123.crawler.dto.queryResponse.QueryResponseDtoStatus;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.userQuery.QueryAnalysisDto;
 import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
 import rikser123.crawler.dto.userQuery.UserQueryDto;
-import rikser123.crawler.dto.event.FinishAnalysisEvent;
-import rikser123.crawler.dto.event.FinishCleanContentEvent;
-import rikser123.crawler.dto.event.FinishDownloadContentEvent;
-import rikser123.crawler.dto.event.FinishSplitChunksEvent;
-import rikser123.crawler.dto.event.ResponseProcessingErrorEvent;
-import rikser123.crawler.dto.event.SummaryEvent;
-import rikser123.crawler.dto.userQuery.UserQueryInitialTimeDto;
 import rikser123.crawler.mapper.UserQueryMapper;
 import rikser123.crawler.repository.entity.SearchQueryOutboxMessage;
-import rikser123.crawler.repository.entity.SearchResponseOutboxMessage;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class PipelineOrchestrator {
-  private final Map<UUID, UserQueryInitialTimeDto> userQueryInProcessing = new ConcurrentHashMap<>();
-  private final Map<UUID, QueryResponseDto> responsesQueryInProcessing = new ConcurrentHashMap<>();
-  private final Object pipelineLock = new Object();
-  private final ScheduledExecutorService cleanUpExecutor = Executors.newSingleThreadScheduledExecutor();
-
   private final Crawler crawler;
   private final TextExtractor textExtractor;
   private final ChunkSplitter chunkSplitter;
@@ -53,223 +37,114 @@ public class PipelineOrchestrator {
   private final SearchResponseMessageService searchResponseMessageService;
   private final UserQueryMapper userQueryMapper;
   private final SearchQueryMessageService searchQueryMessageService;
-  private final PrometheusMetrics prometheusMetrics;
+  private final FetchConfigProperties fetchConfigProperties;
 
-  @Value("${fetch.clear-delay}")
-  private int clearDelay;
+  private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
+  private BlockingQueue<UserQueryDto> queue = new LinkedBlockingQueue<>();
+  private Semaphore semaphore;
+
 
   @PostConstruct
   void init() {
-    cleanUpExecutor.scheduleAtFixedRate(this::cleanUp, 0, clearDelay, TimeUnit.SECONDS);
+    semaphore = new Semaphore(fetchConfigProperties.getQueueLimit());
+
+    executors.execute(() -> {
+      while (true) {
+        try {
+          var request = queue.take();
+          executors.execute(() -> processUserQuery(request));
+        }  catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          break;
+        }
+      }
+    });
   }
 
-  public void initResponseProcessing(MessageUserQueryDto messageDto) {
-   var userQueryDto = userQueryMapper.mapMessageToDto(messageDto);
-   log.info("PIPELINE: crawling {}", messageDto);
+  public void initProcessing(MessageUserQueryDto messageDto) {
+    var userQueryDto = userQueryMapper.mapMessageToDto(messageDto);
+    queue.add(userQueryDto);
 
-    var queryTimeDto = new UserQueryInitialTimeDto();
-    queryTimeDto.setStartTime(Instant.now());
-    queryTimeDto.setDto(userQueryDto);
-    userQueryInProcessing.put(userQueryDto.getSearchQueryId(), queryTimeDto);
-    prometheusMetrics.incrementSearchQuery();
+  }
 
+  public void processUserQuery(UserQueryDto userQueryDto) {
     var responses = userQueryDto.getSearchResponses()
       .stream()
       .map(SearchResponseDtoWithContent::getSearchResponse)
       .toList();
 
-    responses.forEach(response -> {
-      var isResponseInProcessing = responsesQueryInProcessing
-        .values()
-        .stream()
-        .anyMatch(responseQuery -> responseQuery.getUrl().equals(response.getUrl()));
+   var futures = responses.stream().map(this::processUserSearchResponse).toList();
+   CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
-      if (!isResponseInProcessing) {
-        responsesQueryInProcessing.put(response.getSearchResponseId(), response);
-        crawler.initProcessing(response);
-        prometheusMetrics.incrementQueryResponse();
-      }
-    });
+   var results = futures.stream().map(CompletableFuture::join).toList();
+   var allFailed = results.stream().allMatch(Objects::isNull);
+
+   if (allFailed) {
+     handleFailedQueries(userQueryDto, "Обработка всех ответов от яндекса завершился ошибкой!");
+     return;
+   }
+
+   var texts = results.stream().filter(StringUtils::isNotEmpty).toList();
+   var queryDto = new QueryAnalysisDto();
+   queryDto.setQueryText(userQueryDto.getQueryText());
+   queryDto.setSearchQueryId(userQueryDto.getSearchQueryId());
+   queryDto.setTexts(texts);
+   queryDto.setUserId(userQueryDto.getUserId());
+
+   SearchQueryOutboxMessage message;
+
+   try {
+     var result = queryAnalizer.makeAnalysis(queryDto);
+     message = searchQueryMessageService.createQueryOutboxSuccessMessage(result);
+   } catch (Exception e) {
+     var analysisDto = new UserQueryAnalysisDto();
+     analysisDto.setUserId(queryDto.getUserId());
+     analysisDto.setSearchQueryId(queryDto.getSearchQueryId());
+     message = searchQueryMessageService.createQueryOutboxErrorMessage(analysisDto, "Не удалось обработать пересказы!");
+   }
+   searchQueryMessageService.save(message);
   }
 
-  @EventListener
-  void finishDownloadContentListener(FinishDownloadContentEvent event) {
-    log.info("PIPELINE: FinishDownloadContentEvent {}", event.getDto().getSearchResponse().getSearchResponseId());
-    textExtractor.initProcessing(event.getDto());
-    prometheusMetrics.incrementFinishDownload();
+  private CompletableFuture<String> processUserSearchResponse(QueryResponseDto response) {
+    var acquired = new AtomicBoolean();
+    return CompletableFuture.supplyAsync(() -> {
+        try {
+          semaphore.acquire();
+          acquired.set(true);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+        return crawler.download(response);
+    },executors)
+      .thenApply(textExtractor::extractText)
+      .thenApply(chunkSplitter::split)
+      .thenApply(summariser::summarise)
+      .orTimeout(240, TimeUnit.SECONDS)
+      .handle((result, error) -> {
+        if (acquired.get()) {
+          semaphore.release();
+        }
+        if (error != null || result == null) {
+          searchResponseMessageService.createOutboxRequestError(
+            response.getSearchResponseId(),
+            error.getMessage()
+          );
+          return null;
+        }
+
+        return result.getContent();
+      });
   }
 
-  @EventListener
-  void finisCleanContentListener(FinishCleanContentEvent event) {
-    log.info("PIPELINE: FinishCleanContentEvent {}", event.getDto().getSearchResponse().getSearchResponseId());
-    chunkSplitter.initProcessing(event.getDto());
-    prometheusMetrics.incrementCleanContent();
-  }
 
-  @EventListener
-  void finishSplitChunkEventListener(FinishSplitChunksEvent event) {
-    log.info("PIPELINE: FinishSplitChunksEvent {}", event.getDto().getSearchResponse().getSearchResponseId());
-    summariser.initProcessing(event.getDto());
-    prometheusMetrics.incrementSplitChunks();
-  }
-
-  @EventListener
-  void summaryEventListener(SummaryEvent summaryEvent) {
-    var searchResponse = summaryEvent.getDto().getSearchResponse();
-    log.info("PIPELINE: SummaryEvent {}", searchResponse.getSearchResponseId());
-
-    var responses = getAllResponsesWithUrl(searchResponse.getUrl());
-    setResponseQueryStatus(responses, QueryResponseDtoStatus.PROCESSED);
-    searchResponseMessageService.createOutboxSuccessMessage(searchResponse.getSearchResponseId());
-    responses.forEach(response -> {
-      response.setContent(summaryEvent.getDto().getContent());
-    });
-    prometheusMetrics.incrementSummary();
-
-    synchronized (pipelineLock) {
-      analyzeProcessedQueries();
-    }
-  }
-
-  @EventListener
-  void finishAnalysisEventListener(FinishAnalysisEvent event) {
-    log.info("PIPELINE: FinishAnalysisEvent {}", event.getDto().getSearchQueryId());
-    var dto = event.getDto();
-    userQueryInProcessing.remove(dto.getSearchQueryId());
-    SearchQueryOutboxMessage message;
-
-    if (!Objects.isNull(dto.getError())) {
-      message = searchQueryMessageService.createQueryOutboxErrorMessage(dto, dto.getError().getMessage());
-      prometheusMetrics.incrementFailQuery();
-    } else {
-      message = searchQueryMessageService.createQueryOutboxSuccessMessage(dto);
-      prometheusMetrics.incrementSuccessQuery();
-    }
-    searchQueryMessageService.save(message);
-  }
-
-  @EventListener
-  void processingErrorListener(ResponseProcessingErrorEvent event) {
-    synchronized (pipelineLock) {
-      log.info("PIPELINE: ResponseProcessingErrorEvent {}", event.getSearchResponseId());
-      var errorMessage = event.getMessage();
-      var url = event.getUrl();
-
-      var responses = getAllResponsesWithUrl(url);
-      setResponseQueryStatus(responses, QueryResponseDtoStatus.ERROR);
-      saveOutboxResponseMessages(responses, errorMessage);
-      prometheusMetrics.incrementFailResponse();
-
-      var failedQueries = userQueryInProcessing
-        .values()
-        .stream()
-        .filter(query ->
-          query.
-            getDto()
-            .getSearchResponses()
-            .stream()
-            .allMatch(response -> response.getStatus() == QueryResponseDtoStatus.ERROR)
-        ).toList();
-
-      handleFailedQueries(failedQueries, "Обработка всех ответов от яндекса завершился ошибкой!");
-
-      analyzeProcessedQueries();
-    }
-  }
-
-  private List<SearchResponseDtoWithContent> getAllResponsesWithUrl(String url) {
-    return userQueryInProcessing.values()
-      .stream()
-      .map(UserQueryInitialTimeDto::getDto)
-      .map(UserQueryDto::getSearchResponses)
-      .flatMap(Collection::stream)
-      .filter(responseQuery -> responseQuery.getSearchResponse().getUrl().equals(url))
-      .toList();
-  }
-
-  private void setResponseQueryStatus(List<SearchResponseDtoWithContent> queries, QueryResponseDtoStatus status) {
-    queries.forEach(query -> {
-      responsesQueryInProcessing.remove(query.getSearchResponse().getSearchResponseId());
-      query.setStatus(status);
-    });
-  }
-
-  private void analyzeProcessedQueries() {
-    var processedUserQuery = userQueryInProcessing
-      .values()
-      .stream()
-      .filter(userQuery ->
-        userQuery
-          .getDto()
-          .getSearchResponses()
-          .stream()
-          .allMatch(response -> {
-              var status = response.getStatus();
-              return status == QueryResponseDtoStatus.PROCESSED || status == QueryResponseDtoStatus.ERROR;
-            }
-          )).peek(query -> {
-        userQueryInProcessing.remove(query.getDto().getSearchQueryId());
-      }).toList();
-
-    processedUserQuery.forEach(query -> {
-      queryAnalizer.initProcessing(query.getDto());
-    });
-  }
-
-  private void cleanUp() {
-    var outdatedQueries = userQueryInProcessing.values()
-      .stream()
-      .filter(timeQuery -> {
-        var currentTime = Instant.now();
-        var queryStartTime = timeQuery.getStartTime();
-        var duration = Duration.between(queryStartTime, currentTime);
-        return duration.toSeconds() > clearDelay;
-    })
-    .toList();
-
-    var outdatedResponses = outdatedQueries
-        .stream()
-        .map(UserQueryInitialTimeDto::getDto)
-        .map(UserQueryDto::getSearchResponses)
-        .flatMap(Collection::stream)
-        .toList();
-
-    outdatedResponses.forEach(response -> {
-      responsesQueryInProcessing.remove(response.getSearchResponse().getSearchResponseId());
-    });
-
-    final String errorMessage = String.format(
-      "Не удлалось обработать запрос позьзователя - прошло более %s минут",
-      clearDelay
+  private void handleFailedQueries(UserQueryDto query, String errorMessage) {
+    var analysisDto = new UserQueryAnalysisDto();
+    analysisDto.setUserId(query.getUserId());
+    analysisDto.setSearchQueryId(query.getSearchQueryId());
+    var message = searchQueryMessageService.createQueryOutboxErrorMessage(
+      analysisDto,
+      errorMessage
     );
-    saveOutboxResponseMessages(outdatedResponses, errorMessage);
-    handleFailedQueries(outdatedQueries, errorMessage);
-  }
-
-  private List<SearchResponseOutboxMessage> saveOutboxResponseMessages(
-    List<SearchResponseDtoWithContent> responses, String errorMessage
-  ) {
-    var outboxMessages = responses.stream()
-      .map(response ->
-      searchResponseMessageService.createOutboxRequestError(
-        response.getSearchResponse().getSearchResponseId(),
-        errorMessage
-      )
-    ).toList();
-    return searchResponseMessageService.saveAll(outboxMessages);
-  }
-
-  private void handleFailedQueries(List<UserQueryInitialTimeDto> failedQueries, String errorMessage) {
-    failedQueries.forEach(queryTime -> {
-      var query = queryTime.getDto();
-      userQueryInProcessing.remove(query.getSearchQueryId());
-      var analysisDto = new UserQueryAnalysisDto();
-      analysisDto.setUserId(query.getUserId());
-      analysisDto.setSearchQueryId(query.getSearchQueryId());
-      searchQueryMessageService.createQueryOutboxErrorMessage(
-        analysisDto,
-        errorMessage
-      );
-    });
+    searchQueryMessageService.save(message);
   }
 }
