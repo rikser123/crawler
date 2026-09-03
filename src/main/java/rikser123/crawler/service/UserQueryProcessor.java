@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PipelineOrchestrator {
+public class UserQueryProcessor {
   private final Crawler crawler;
   private final TextExtractor textExtractor;
   private final ChunkSplitter chunkSplitter;
@@ -67,7 +67,7 @@ public class PipelineOrchestrator {
 
   }
 
-  public void processUserQuery(UserQueryDto userQueryDto) {
+  private void processUserQuery(UserQueryDto userQueryDto) {
     var responses = userQueryDto.getSearchResponses()
       .stream()
       .map(SearchResponseDtoWithContent::getSearchResponse)

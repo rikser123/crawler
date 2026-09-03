@@ -53,7 +53,7 @@ rest:
   connection-timeout: 5
   read-timeout: 10
 
-bothub:
+deepseek:
   token: token
   url: http://localhost:8081
   summary_model: deepseek-v4-flash

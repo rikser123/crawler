@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import rikser123.bundle.component.ConstraintValidator;
 import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
 import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
-import rikser123.crawler.service.PipelineOrchestrator;
+import rikser123.crawler.service.UserQueryProcessor;
 import rikser123.crawler.service.SearchQueryMessageService;
 
 import java.util.Objects;
@@ -22,7 +22,7 @@ public class QueryConsumer {
 
   private final ObjectMapper objectMapper;
   private final ConstraintValidator validator;
-  private final PipelineOrchestrator pipelineOrchestrator;
+  private final UserQueryProcessor userQueryProcessor;
   private final SearchQueryMessageService searchQueryMessageService;
 
   @KafkaListener(topics = { QUERY_TOPIC }, groupId = "crawler")
@@ -36,7 +36,7 @@ public class QueryConsumer {
       userId = data.getUserId();
 //      validator.validate(data);
 
-      pipelineOrchestrator.initProcessing(data);
+      userQueryProcessor.initProcessing(data);
     } catch (Exception e) {
       if (!Objects.isNull((searchQueryId))) {
 
