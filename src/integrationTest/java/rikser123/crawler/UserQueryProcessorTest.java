@@ -10,7 +10,7 @@ import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
 import rikser123.crawler.exception.BigSizeContentException;
 import rikser123.crawler.service.ChunkSplitter;
-import rikser123.crawler.service.DeepSeekService;
+import rikser123.crawler.service.LlmService;
 import rikser123.crawler.service.UserQueryProcessor;
 import rikser123.crawler.service.QueryAnalizer;
 import rikser123.crawler.service.SearchQueryMessageService;
@@ -44,7 +44,7 @@ public class UserQueryProcessorTest extends BaseConfig {
   private RedisCacheService redisCacheService;
 
   @MockitoBean
-  private DeepSeekService deepSeekService;
+  private LlmService llmService;
 
   @Autowired
   @MockitoSpyBean
@@ -108,8 +108,9 @@ public class UserQueryProcessorTest extends BaseConfig {
 
     when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
     when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenReturn(TEXT_CONTENT);
-    when(deepSeekService.getSummary(any())).thenReturn(summary);
-    when(deepSeekService.getQueryAnalysis(eq(messageDto.getQueryText()), any())).thenReturn(analysis);
+    when(llmService.getSummary(any())).thenReturn(summary);
+    when(llmService.getAggregationReport(any())).thenReturn(summary);
+    when(llmService.getQueryAnalysis(eq(messageDto.getQueryText()), any())).thenReturn(analysis);
 
     userQueryProcessor.initProcessing(messageDto);
 
@@ -145,7 +146,7 @@ public class UserQueryProcessorTest extends BaseConfig {
       .pollInterval(100, TimeUnit.MILLISECONDS)
       .untilAsserted(() -> {
         verify(queryAnalizer, atLeastOnce()).makeAnalysis(argThat(arg -> {
-          assertThat(arg.getTexts()).contains(summary);
+          assertThat(arg.getTexts().getFirst()).contains(summary);
           return true;
         }));
       });
@@ -207,8 +208,8 @@ public class UserQueryProcessorTest extends BaseConfig {
     when(restTemplate.execute(eq("url"), any(), any(), any(), eq(String.class))).thenReturn(TEXT_CONTENT);
     when(restTemplate.execute(eq("url2"), any(), any(), any(), eq(String.class))).thenReturn(TEXT_CONTENT);
 
-    when(deepSeekService.getSummary(any())).thenReturn(summary);
-    when(deepSeekService.getQueryAnalysis(eq(messageDto.getQueryText()), any())).thenReturn(analysis);
+    when(llmService.getSummary(any())).thenReturn(summary);
+    when(llmService.getQueryAnalysis(eq(messageDto.getQueryText()), any())).thenReturn(analysis);
 
     userQueryProcessor.initProcessing(messageDto);
 
@@ -240,8 +241,8 @@ public class UserQueryProcessorTest extends BaseConfig {
     when(restTemplate.execute(eq("url"), any(), any(), any(), eq(String.class))).thenReturn(TEXT_CONTENT);
     when(restTemplate.execute(eq("url2"), any(), any(), any(), eq(String.class))).thenThrow(new BigSizeContentException("Большой размер!"));
 
-    when(deepSeekService.getSummary(any())).thenReturn(summary);
-    when(deepSeekService.getQueryAnalysis(eq(messageDto.getQueryText()), any())).thenReturn(analysis);
+    when(llmService.getSummary(any())).thenReturn(summary);
+    when(llmService.getQueryAnalysis(eq(messageDto.getQueryText()), any())).thenReturn(analysis);
 
     userQueryProcessor.initProcessing(messageDto);
 

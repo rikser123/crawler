@@ -28,7 +28,7 @@ public class Summariser {
   private static final int CHUNKS_COUNT = 2;
 
   private final FetchConfigProperties fetchProperties;
-  private final DeepSeekService deepSeekService;
+  private final LlmService llmService;
 
 
   public  SearchResponseDtoWithContent summarise(SearchResponseDtoWithChunks searchResponseDtoWithChunks) {
@@ -39,7 +39,7 @@ public class Summariser {
       try {
         attempt += 1;
         var relevantChunks = getRelevantChunks(searchResponseDtoWithChunks);
-        var summary = deepSeekService.getSummary(relevantChunks);
+        var summary = llmService.getSummary(relevantChunks);
         return getSummaryDto(searchResponseDtoWithChunks.getSearchResponse(), summary);
       } catch (IllegalStateException e) {
         if (attempt >= fetchProperties.getMaxDownloadAttempt()) {

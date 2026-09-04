@@ -91,17 +91,11 @@ rest:
   connection-timeout: 5
   read-timeout: 10
 
-bothub:
-  token: ${BOTHUB_TOKEN}
-  url: ${BOTHUB_URL}
-  summary_model: ${BOTHUD_SUMMARY_MODEL:deepseek-v4-flash}
-  analysis_model: ${BOTHUD_ANALYISIS_MODEL:deepseek-v4-pro}
-  timeout: ${BOTHUB_CONNECTION_TIMEOUT:120}
-
-deepseek:
-  token: ${DEEPSEEK_TOKEN}
-  url: ${DEEPSEEK_URL}
-  summary_model: ${DEEPSEEK_SUMMARY_MODEL:deepseek-v4-flash}
-  analysis_model: ${DEEPSEEK_ANALYISIS_MODEL:deepseek-v4-pro}
-  timeout: ${DEEPSEEK_CONNECTION_TIMEOUT:120}
+llm:
+  token: ${LLM_TOKEN}
+  url: ${LLM_URL}
+  summary_model: ${LLM_SUMMARY_MODEL:qwen3.6-flash}
+  aggregation_model: ${LLM_AGGREGATION_MODEL:qwen3.8-flash}
+  analysis_model: ${LLM_ANALYSIS_MODEL:qwen3.8-flash}
+  timeout: ${LLM_CONNECTION_TIMEOUT:360}
 

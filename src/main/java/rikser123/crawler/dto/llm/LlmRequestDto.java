@@ -1,4 +1,4 @@
-package rikser123.crawler.dto.deepseek;
+package rikser123.crawler.dto.llm;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -9,7 +9,7 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class DeepSeekRequestDto {
+public class LlmRequestDto {
   private String model;
   private List<Message> messages;
   private final Boolean stream = false;

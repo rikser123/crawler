@@ -1,4 +1,4 @@
-package rikser123.crawler.dto.deepseek;
+package rikser123.crawler.dto.llm;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
@@ -11,7 +11,7 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @AllArgsConstructor
 @NoArgsConstructor
-public class DeepSeekResponseDto {
+public class LlmResponseDto {
   private List<Choice> choices;
   private Error error;
 

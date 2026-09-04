@@ -72,7 +72,6 @@ public class UserQueryProcessor {
       .stream()
       .map(SearchResponseDtoWithContent::getSearchResponse)
       .toList();
-
    var futures = responses.stream().map(this::processUserSearchResponse).toList();
    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
@@ -97,6 +96,7 @@ public class UserQueryProcessor {
      var result = queryAnalizer.makeAnalysis(queryDto);
      message = searchQueryMessageService.createQueryOutboxSuccessMessage(result);
    } catch (Exception e) {
+     log.warn("Не удалось обработать пересказы", e);
      var analysisDto = new UserQueryAnalysisDto();
      analysisDto.setUserId(queryDto.getUserId());
      analysisDto.setSearchQueryId(queryDto.getSearchQueryId());
@@ -119,7 +119,7 @@ public class UserQueryProcessor {
       .thenApply(textExtractor::extractText)
       .thenApply(chunkSplitter::split)
       .thenApply(summariser::summarise)
-      .orTimeout(240, TimeUnit.SECONDS)
+      .orTimeout(90, TimeUnit.SECONDS)
       .handle((result, error) -> {
         if (acquired.get()) {
           semaphore.release();
@@ -132,7 +132,7 @@ public class UserQueryProcessor {
           return null;
         }
 
-        return result.getContent();
+        return result.getContent() + " Источник: " + result.getSearchResponse().getUrl();
       });
   }
 

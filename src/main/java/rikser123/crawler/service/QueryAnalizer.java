@@ -10,14 +10,14 @@ import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
 @RequiredArgsConstructor
 @Slf4j
 public class QueryAnalizer {
-  private final DeepSeekService bothubService;
+  private final LlmService llmService;
 
   public UserQueryAnalysisDto makeAnalysis(QueryAnalysisDto request) {
     try {
       var userQuery = request.getQueryText();
       var summaries = request.getTexts();
-      var response = bothubService.getQueryAnalysis(userQuery, summaries);
-
+      var report = llmService.getAggregationReport(summaries);
+      var response = llmService.getQueryAnalysis(userQuery, report);
       return createAnalysisDto(request, response);
 
     } catch (IllegalStateException exception) {

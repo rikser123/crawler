@@ -25,7 +25,7 @@ public class SummariserTest {
   private Summariser summariser;
 
   @Mock
-  private DeepSeekService deepSeekService;
+  private LlmService llmService;
 
   @BeforeEach
   void init() {
@@ -35,7 +35,7 @@ public class SummariserTest {
     fetchConfig.setQueueLimit(5);
     fetchConfig.setTimeoutQueueLimit(5);
 
-    summariser = new Summariser(fetchConfig, deepSeekService);
+    summariser = new Summariser(fetchConfig, llmService);
   }
 
   @Test
@@ -47,11 +47,11 @@ public class SummariserTest {
     dto.setAttempt(0);
     dto.setChunks(List.of("Эй вы там", "Текст запроса", "Текст ответа"));
 
-    when(deepSeekService.getSummary(any())).thenReturn("outputText");
+    when(llmService.getSummary(any())).thenReturn("outputText");
 
     summariser.summarise(dto);
 
-    verify(deepSeekService, atLeastOnce()).getSummary(argThat(arg -> {
+    verify(llmService, atLeastOnce()).getSummary(argThat(arg -> {
       assertThat(arg).contains("Текст запроса");
       return true;
     }));
@@ -66,11 +66,11 @@ public class SummariserTest {
     dto.setAttempt(0);
     dto.setChunks(List.of("Эй вы там", "Текст запроса"));
 
-    when(deepSeekService.getSummary(any())).thenReturn("outputText");
+    when(llmService.getSummary(any())).thenReturn("outputText");
 
     summariser.summarise(dto);
 
-    verify(deepSeekService, atLeastOnce()).getSummary(argThat(arg -> {
+    verify(llmService, atLeastOnce()).getSummary(argThat(arg -> {
       assertThat(arg).contains("Эй вы там");
       assertThat(arg).contains("Текст запроса");
       return true;
@@ -98,7 +98,7 @@ public class SummariserTest {
     dto.setAttempt(0);
     dto.setChunks(List.of("Эй вы там", "Эй вы там"));
 
-    when(deepSeekService.getSummary(any())).thenThrow(new IllegalStateException("Не удалось получить данные из Bothub"));
+    when(llmService.getSummary(any())).thenThrow(new IllegalStateException("Не удалось получить данные из Bothub"));
 
     assertThatThrownBy(() ->  summariser.summarise(dto)).isInstanceOf(IllegalStateException.class);
   }
