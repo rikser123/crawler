@@ -1,6 +1,7 @@
 package rikser123.crawler.service;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -59,6 +60,18 @@ public class UserQueryProcessor {
         }
       }
     });
+  }
+
+  @PreDestroy
+  void preDestroy() {
+    executors.shutdown();
+    try {
+      if (executors.awaitTermination(30, TimeUnit.SECONDS)) {
+        executors.shutdownNow();
+      }
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+    }
   }
 
   public void initProcessing(MessageUserQueryDto messageDto) {
