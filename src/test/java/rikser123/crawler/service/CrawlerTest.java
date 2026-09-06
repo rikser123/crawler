@@ -6,6 +6,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import rikser123.crawler.component.PrometheusMetrics;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 
 import java.util.UUID;
@@ -38,6 +39,9 @@ public class CrawlerTest {
   @Mock
   private RedisCacheService redisCacheService;
 
+  @Mock
+  private PrometheusMetrics prometheusMetrics;
+
   @BeforeEach
   void init() {
     var fetchConfig = new FetchConfigProperties();
@@ -50,7 +54,8 @@ public class CrawlerTest {
       fetchConfig,
       crawlerResponseExtractor,
       restTemplate,
-      redisCacheService
+      redisCacheService,
+      prometheusMetrics
     );
   }
 

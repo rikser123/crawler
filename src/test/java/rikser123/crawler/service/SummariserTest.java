@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import rikser123.crawler.component.PrometheusMetrics;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithChunks;
@@ -27,6 +28,9 @@ public class SummariserTest {
   @Mock
   private LlmService llmService;
 
+  @Mock
+  private PrometheusMetrics prometheusMetrics;
+
   @BeforeEach
   void init() {
     var fetchConfig = new FetchConfigProperties();
@@ -35,7 +39,7 @@ public class SummariserTest {
     fetchConfig.setQueueLimit(5);
     fetchConfig.setTimeoutQueueLimit(5);
 
-    summariser = new Summariser(fetchConfig, llmService);
+    summariser = new Summariser(fetchConfig, llmService, prometheusMetrics);
   }
 
   @Test

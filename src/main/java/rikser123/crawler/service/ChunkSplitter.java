@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+import rikser123.crawler.component.PrometheusMetrics;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithChunks;
@@ -22,6 +23,7 @@ public class ChunkSplitter {
   private static final int CHUNK_GAP = 40;
 
   private final FetchConfigProperties fetchConfigProperties;
+  private final PrometheusMetrics prometheusMetrics;
 
   public SearchResponseDtoWithChunks split(SearchResponseDtoWithContent searchResponse) {
     try {
@@ -36,6 +38,8 @@ public class ChunkSplitter {
       }
 
       if (text.length() < chunkSize + overlapCount) {
+        prometheusMetrics.incrementSplitChunks();
+
         chunks.add(text);
         return getSplitChunksDto(searchResponse.getSearchResponse(), chunks);
       }
@@ -66,6 +70,8 @@ public class ChunkSplitter {
       if (!currentChunk.isEmpty()) {
         chunks.add(currentChunk.toString());
       }
+
+      prometheusMetrics.incrementSplitChunks();
 
       return getSplitChunksDto(searchResponse.getSearchResponse(), chunks);
     } catch (Exception e) {

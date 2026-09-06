@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.CrawlerResponseExtractor;
+import rikser123.crawler.component.PrometheusMetrics;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
@@ -35,6 +36,8 @@ public class Crawler {
   private final CrawlerResponseExtractor crawlerResponseExtractor;
   private final RestTemplate restTemplate;
   private final RedisCacheService redisCacheService;
+  private final PrometheusMetrics prometheusMetrics;
+
   private ConcurrentHashMap<String, AtomicInteger> processedResponses = new ConcurrentHashMap<>();
 
   public SearchResponseDtoWithContent download(QueryResponseDto queryResponseDto) {
@@ -61,6 +64,8 @@ public class Crawler {
         var content = downloadLinkContent(queryResponseDto);
 
         if (!Objects.isNull(content)) {
+          prometheusMetrics.incrementFinishDownload();
+
           var dto = new SearchResponseDtoWithContent();
           dto.setSearchResponse(queryResponseDto);
           dto.setContent(content);

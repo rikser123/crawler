@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+import rikser123.crawler.component.PrometheusMetrics;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
@@ -39,6 +40,7 @@ public class UserQueryProcessor {
   private final UserQueryMapper userQueryMapper;
   private final SearchQueryMessageService searchQueryMessageService;
   private final FetchConfigProperties fetchConfigProperties;
+  private final PrometheusMetrics prometheusMetrics;
 
   private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
   private BlockingQueue<UserQueryDto> queue = new LinkedBlockingQueue<>();
@@ -81,6 +83,8 @@ public class UserQueryProcessor {
   }
 
   private void processUserQuery(UserQueryDto userQueryDto) {
+    prometheusMetrics.incrementSearchQuery();
+
     var responses = userQueryDto.getSearchResponses()
       .stream()
       .map(SearchResponseDtoWithContent::getSearchResponse)
@@ -108,17 +112,23 @@ public class UserQueryProcessor {
    try {
      var result = queryAnalizer.makeAnalysis(queryDto);
      message = searchQueryMessageService.createQueryOutboxSuccessMessage(result);
+
+     prometheusMetrics.incrementSuccessQuery();
    } catch (Exception e) {
      log.warn("Не удалось обработать пересказы", e);
      var analysisDto = new UserQueryAnalysisDto();
      analysisDto.setUserId(queryDto.getUserId());
      analysisDto.setSearchQueryId(queryDto.getSearchQueryId());
      message = searchQueryMessageService.createQueryOutboxErrorMessage(analysisDto, "Не удалось обработать пересказы!");
+
+     prometheusMetrics.incrementFailQuery();
    }
    searchQueryMessageService.save(message);
   }
 
   private CompletableFuture<String> processUserSearchResponse(QueryResponseDto response) {
+    prometheusMetrics.incrementQueryResponse();
+
     var acquired = new AtomicBoolean();
     return CompletableFuture.supplyAsync(() -> {
         try {
@@ -138,6 +148,8 @@ public class UserQueryProcessor {
           semaphore.release();
         }
         if (error != null || result == null) {
+          prometheusMetrics.incrementFailResponse();
+
           searchResponseMessageService.createOutboxRequestError(
             response.getSearchResponseId(),
             error.getMessage()

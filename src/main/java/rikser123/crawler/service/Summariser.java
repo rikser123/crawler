@@ -13,6 +13,7 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.springframework.stereotype.Service;
+import rikser123.crawler.component.PrometheusMetrics;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithChunks;
@@ -29,7 +30,7 @@ public class Summariser {
 
   private final FetchConfigProperties fetchProperties;
   private final LlmService llmService;
-
+  private final PrometheusMetrics prometheusMetrics;
 
   public  SearchResponseDtoWithContent summarise(SearchResponseDtoWithChunks searchResponseDtoWithChunks) {
     var attempt = 0;
@@ -40,6 +41,8 @@ public class Summariser {
         attempt += 1;
         var relevantChunks = getRelevantChunks(searchResponseDtoWithChunks);
         var summary = llmService.getSummary(relevantChunks);
+
+        prometheusMetrics.incrementSummary();
         return getSummaryDto(searchResponseDtoWithChunks.getSearchResponse(), summary);
       } catch (IllegalStateException e) {
         if (attempt >= fetchProperties.getMaxDownloadAttempt()) {
