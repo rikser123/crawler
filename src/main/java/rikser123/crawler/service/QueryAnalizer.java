@@ -16,7 +16,9 @@ public class QueryAnalizer {
     try {
       var userQuery = request.getQueryText();
       var summaries = request.getTexts();
+      log.info("starting aggregation");
       var report = llmService.getAggregationReport(summaries);
+      log.info("starting analysis");
       var response = llmService.getQueryAnalysis(userQuery, report);
       return createAnalysisDto(request, response);
 

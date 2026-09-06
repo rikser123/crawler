@@ -15,7 +15,10 @@ import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
 import rikser123.crawler.dto.userQuery.UserQueryDto;
 import rikser123.crawler.mapper.UserQueryMapper;
 import rikser123.crawler.repository.entity.SearchQueryOutboxMessage;
+import rikser123.crawler.repository.entity.SearchResponseOutboxMessage;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -78,21 +81,23 @@ public class UserQueryProcessor {
   public void initProcessing(MessageUserQueryDto messageDto) {
     var userQueryDto = userQueryMapper.mapMessageToDto(messageDto);
     queue.add(userQueryDto);
-
   }
 
   private void processUserQuery(UserQueryDto userQueryDto) {
     prometheusMetrics.incrementSearchQuery();
+    var responseMessageList = new ArrayList<SearchResponseOutboxMessage>();
 
     var responses = userQueryDto.getSearchResponses()
       .stream()
       .map(SearchResponseDtoWithContent::getSearchResponse)
       .toList();
-   var futures = responses.stream().map(this::processUserSearchResponse).toList();
+   var futures = responses.stream().map(resp -> this.processUserSearchResponse(resp, responseMessageList)).toList();
    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
    var results = futures.stream().map(CompletableFuture::join).toList();
-   var allFailed = results.stream().allMatch(Objects::isNull);
+
+    var allFailed = results.stream().allMatch(Objects::isNull);
+    searchResponseMessageService.saveAll(responseMessageList);
 
    if (allFailed) {
      handleFailedQueries(userQueryDto, "Обработка всех ответов от яндекса завершился ошибкой!");
@@ -122,7 +127,9 @@ public class UserQueryProcessor {
    searchQueryMessageService.save(message);
   }
 
-  private CompletableFuture<String> processUserSearchResponse(QueryResponseDto response) {
+  private CompletableFuture<String> processUserSearchResponse(
+    QueryResponseDto response, List<SearchResponseOutboxMessage> messageList
+  ) {
     prometheusMetrics.incrementQueryResponse();
 
     var acquired = new AtomicBoolean();
@@ -138,7 +145,7 @@ public class UserQueryProcessor {
       .thenApply(textExtractor::extractText)
       .thenApply(chunkSplitter::split)
       .thenApply(summariser::summarise)
-      .orTimeout(90, TimeUnit.SECONDS)
+      .orTimeout(60, TimeUnit.SECONDS)
       .handle((result, error) -> {
         if (acquired.get()) {
           semaphore.release();
@@ -146,13 +153,16 @@ public class UserQueryProcessor {
         if (error != null || result == null) {
           prometheusMetrics.incrementFailResponse();
 
-          searchResponseMessageService.createOutboxRequestError(
+          var message = searchResponseMessageService.createOutboxRequestError(
             response.getSearchResponseId(),
             error.getMessage()
           );
+          messageList.add(message);
           return null;
         }
 
+        var message = searchResponseMessageService.createOutboxSuccessMessage(response.getSearchResponseId());
+        messageList.add(message);
         return result.getContent() + " Источник: " + result.getSearchResponse().getUrl();
       });
   }
