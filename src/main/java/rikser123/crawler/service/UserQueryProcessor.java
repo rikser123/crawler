@@ -11,7 +11,6 @@ import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
 import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
-import rikser123.crawler.dto.userQuery.QueryAnalysisDto;
 import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
 import rikser123.crawler.dto.userQuery.UserQueryDto;
 import rikser123.crawler.mapper.UserQueryMapper;
@@ -101,11 +100,8 @@ public class UserQueryProcessor {
    }
 
    var texts = results.stream().filter(StringUtils::isNotEmpty).toList();
-   var queryDto = new QueryAnalysisDto();
-   queryDto.setQueryText(userQueryDto.getQueryText());
-   queryDto.setSearchQueryId(userQueryDto.getSearchQueryId());
+   var queryDto = userQueryMapper.mapToAnalysisDto(userQueryDto);
    queryDto.setTexts(texts);
-   queryDto.setUserId(userQueryDto.getUserId());
 
    SearchQueryOutboxMessage message;
 

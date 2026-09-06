@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
 import rikser123.crawler.dto.queryResponse.QueryResponseDtoStatus;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
+import rikser123.crawler.dto.userQuery.QueryAnalysisDto;
 import rikser123.crawler.dto.userQuery.UserQueryDto;
 
 @Mapper(componentModel = "spring")
@@ -34,4 +35,5 @@ public abstract class UserQueryMapper {
     dto.setSearchResponses(dtoResponses);
   }
 
+  public abstract QueryAnalysisDto mapToAnalysisDto(UserQueryDto userQueryDto);
 }
