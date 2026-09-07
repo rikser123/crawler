@@ -99,3 +99,6 @@ llm:
   analysis_model: ${LLM_ANALYSIS_MODEL:qwen3.8-flash}
   timeout: ${LLM_CONNECTION_TIMEOUT:360}
 
+response-cache:
+  ttl: PT1H
+

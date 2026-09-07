@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.PrometheusMetrics;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
@@ -28,6 +29,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -43,6 +45,7 @@ public class UserQueryProcessor {
   private final SearchQueryMessageService searchQueryMessageService;
   private final FetchConfigProperties fetchConfigProperties;
   private final PrometheusMetrics prometheusMetrics;
+  private final RedisCacheService redisCacheService;
 
   private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
   private BlockingQueue<UserQueryDto> queue = new LinkedBlockingQueue<>();
@@ -91,20 +94,42 @@ public class UserQueryProcessor {
       .stream()
       .map(SearchResponseDtoWithContent::getSearchResponse)
       .toList();
-   var futures = responses.stream().map(resp -> this.processUserSearchResponse(resp, responseMessageList)).toList();
-   CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
-   var results = futures.stream().map(CompletableFuture::join).toList();
+    var cachedSummaries = responses.stream()
+      .collect(Collectors.toMap(r -> r.getSearchResponseId(), r -> {
+        var cache = redisCacheService.get(r.getUrl(), String.class);
+        return cache.isPresent() ? cache.get() : StringUtils.EMPTY;
+        })
+      );
+    var cachedResponses = responses
+      .stream()
+      .filter(response -> StringUtils.isNotEmpty(cachedSummaries.get(response.getSearchResponseId())))
+      .toList();
+    cachedResponses.forEach(response -> {
+      var successMessage = searchResponseMessageService.createOutboxSuccessMessage(response.getSearchResponseId());
+      responseMessageList.add(successMessage);
+    });
+
+    var futures = responses.stream()
+      .filter(response ->
+        cachedResponses.stream()
+          .noneMatch(resp -> resp.getSearchResponseId().equals(response.getSearchResponseId())))
+      .map(resp -> this.processUserSearchResponse(resp, responseMessageList))
+      .toList();
+    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+    var results = futures.stream().map(CompletableFuture::join).toList();
 
     var allFailed = results.stream().allMatch(Objects::isNull);
     searchResponseMessageService.saveAll(responseMessageList);
 
-   if (allFailed) {
+   if (allFailed && cachedResponses.isEmpty()) {
      handleFailedQueries(userQueryDto, "Обработка всех ответов от яндекса завершился ошибкой!");
      return;
    }
-
-   var texts = results.stream().filter(StringUtils::isNotEmpty).toList();
+   var texts = new ArrayList<String>();
+   texts.addAll(results.stream().filter(StringUtils::isNotEmpty).toList());
+   texts.addAll(cachedSummaries.values().stream().filter(StringUtils::isNotEmpty).toList());
    var queryDto = userQueryMapper.mapToAnalysisDto(userQueryDto);
    queryDto.setTexts(texts);
 
@@ -141,7 +166,7 @@ public class UserQueryProcessor {
           throw new RuntimeException(e);
         }
         return crawler.download(response);
-    },executors)
+    }, executors)
       .thenApply(textExtractor::extractText)
       .thenApply(chunkSplitter::split)
       .thenApply(summariser::summarise)
@@ -163,7 +188,7 @@ public class UserQueryProcessor {
 
         var message = searchResponseMessageService.createOutboxSuccessMessage(response.getSearchResponseId());
         messageList.add(message);
-        return result.getContent() + " Источник: " + result.getSearchResponse().getUrl();
+        return result.getContent();
       });
   }
 

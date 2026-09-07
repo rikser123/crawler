@@ -12,7 +12,9 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.PrometheusMetrics;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
@@ -31,6 +33,10 @@ public class Summariser {
   private final FetchConfigProperties fetchProperties;
   private final LlmService llmService;
   private final PrometheusMetrics prometheusMetrics;
+  private final RedisCacheService redisCacheService;
+
+  @Value("${response-cache.ttl}")
+  private String cacheTtl;
 
   public  SearchResponseDtoWithContent summarise(SearchResponseDtoWithChunks searchResponseDtoWithChunks) {
     var attempt = 0;
@@ -41,8 +47,11 @@ public class Summariser {
         attempt += 1;
         var relevantChunks = getRelevantChunks(searchResponseDtoWithChunks);
         var summary = llmService.getSummary(relevantChunks);
+        summary = summary + " Источник: " + searchResponseDtoWithChunks.getSearchResponse().getUrl();
 
         prometheusMetrics.incrementSummary();
+        redisCacheService.put(searchResponseDtoWithChunks.getSearchResponse().getUrl().toString(), summary, cacheTtl);
+
         return getSummaryDto(searchResponseDtoWithChunks.getSearchResponse(), summary);
       } catch (IllegalStateException e) {
         if (attempt >= fetchProperties.getMaxDownloadAttempt()) {

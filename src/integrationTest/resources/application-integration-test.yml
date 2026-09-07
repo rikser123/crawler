@@ -60,3 +60,6 @@ llm:
   analysis_model: qwen3.6-flash
   aggregation_model: qwen3.6-flash
   timeout: 60
+
+response-cache:
+  ttl: PT1H

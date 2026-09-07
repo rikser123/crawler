@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.PrometheusMetrics;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.dto.queryResponse.QueryResponseDto;
@@ -31,6 +32,9 @@ public class SummariserTest {
   @Mock
   private PrometheusMetrics prometheusMetrics;
 
+  @Mock
+  private RedisCacheService redisCacheService;
+
   @BeforeEach
   void init() {
     var fetchConfig = new FetchConfigProperties();
@@ -39,13 +43,18 @@ public class SummariserTest {
     fetchConfig.setQueueLimit(5);
     fetchConfig.setTimeoutQueueLimit(5);
 
-    summariser = new Summariser(fetchConfig, llmService, prometheusMetrics);
+    summariser = new Summariser(
+      fetchConfig,
+      llmService,
+      prometheusMetrics, redisCacheService
+    );
   }
 
   @Test
   void shouldFindRelevantChunks() {
     var dto = new SearchResponseDtoWithChunks();
     var searchResponse = new QueryResponseDto();
+    searchResponse.setUrl("url");
     searchResponse.setQueryText("Текст");
     dto.setSearchResponse(searchResponse);
     dto.setAttempt(0);
@@ -65,6 +74,7 @@ public class SummariserTest {
   void shouldHandleTwoCHunksWithoutComparingWithQuery() {
     var dto = new SearchResponseDtoWithChunks();
     var searchResponse = new QueryResponseDto();
+    searchResponse.setUrl("url");
     searchResponse.setQueryText("Текст");
     dto.setSearchResponse(searchResponse);
     dto.setAttempt(0);
