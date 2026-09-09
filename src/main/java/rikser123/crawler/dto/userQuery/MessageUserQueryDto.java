@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import rikser123.bundle.validation.CheckSqlInjection;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +19,7 @@ public class MessageUserQueryDto {
   private UUID searchQueryId;
 
   @NotNull(message = "Параметр queryText должен быть заполнен!")
+  @CheckSqlInjection
   private String queryText;
 
   @NotNull(message = "Параметр userId должен быть заполнен!")

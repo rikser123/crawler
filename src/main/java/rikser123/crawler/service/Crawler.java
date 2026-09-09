@@ -206,7 +206,7 @@ public class Crawler {
       redisCacheService.put(domain, body);
       return body;
     } catch (Exception e) {
-      log.warn("Failed to download robots.txt for {}: {}: {}", robotsLink, e.getClass().getSimpleName(), e.getMessage(), e);
+      log.warn("Failed to download robots.txt for {}", robotsLink);
       return null;
     }
   }
