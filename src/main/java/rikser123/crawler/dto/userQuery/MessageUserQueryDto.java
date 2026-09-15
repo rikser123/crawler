@@ -39,5 +39,8 @@ public class MessageUserQueryDto {
 
     @NotEmpty(message = "Параметр domain должен быть заполнен!")
     private String domain;
+
+    @NotEmpty(message = "Параметр passages должен быть заполнен!")
+    private String passages;
   }
 }

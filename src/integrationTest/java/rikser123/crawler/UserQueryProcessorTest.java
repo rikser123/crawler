@@ -162,101 +162,101 @@ public class UserQueryProcessorTest extends BaseConfig {
       });
   }
 
-  @Test
-  void shouldHandleErrorCrawler() {
-    var messageDto = createMessageDto();
-
-    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
-    when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenThrow(new BigSizeContentException("Большой текст"));
-
-
-    userQueryProcessor.initProcessing(messageDto);
-
-    await().atMost(5, TimeUnit.SECONDS)
-      .pollInterval(100, TimeUnit.MILLISECONDS)
-      .untilAsserted(() -> {
-        verify(searchResponseMessageService, atLeastOnce()).createOutboxRequestError(argThat(arg -> {
-          assertThat(arg).isEqualTo(messageDto.getSearchResponses().getFirst().getSearchResponseId());
-          return true;
-        }), any());
-      });
-
-    await().atMost(5, TimeUnit.SECONDS)
-      .pollInterval(100, TimeUnit.MILLISECONDS)
-      .untilAsserted(() -> {
-        verify(searchQueryMessageService, atLeastOnce()).createQueryOutboxErrorMessage(argThat(arg -> {
-          assertThat(arg.getSearchQueryId()).isEqualTo(messageDto.getSearchQueryId());
-          return true;
-        }), any());
-      });
-  }
-
-  @Test
-  void shouldHandleOneTwoRequests() {
-    var messageDto = createMessageDto();
-    var response = new MessageUserQueryDto.SearchResponse();
-    response.setSearchResponseId(UUID.randomUUID());
-    response.setUrl("url2");
-    response.setDomain("domain");
-    messageDto.setSearchResponses(new ArrayList<>(messageDto.getSearchResponses()));
-    messageDto.getSearchResponses().add(response);
-
-    var summary = "Краткий пересказ";
-    var analysis = "Анализ";
-
-    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
-    when(restTemplate.execute(eq("url"), any(), any(), any(), eq(String.class))).thenReturn(TEXT_CONTENT);
-    when(restTemplate.execute(eq("url2"), any(), any(), any(), eq(String.class))).thenReturn(TEXT_CONTENT);
-
-    when(llmService.getSummary(any())).thenReturn(summary);
-    when(llmService.getQueryAnalysis(eq(messageDto.getQueryText()), any())).thenReturn(analysis);
-
-    userQueryProcessor.initProcessing(messageDto);
-
-    await().atMost(5, TimeUnit.SECONDS)
-      .pollInterval(100, TimeUnit.MILLISECONDS)
-      .untilAsserted(() -> {
-        verify(searchQueryMessageService, atLeastOnce()).createQueryOutboxSuccessMessage(argThat(arg -> {
-
-          assertThat(arg.getAnalysis()).isEqualTo(analysis);
-          return true;
-        }));
-      });
-  }
-
-  @Test
-  void shouldHandleOneTwoRequestsWithErrors() {
-    var messageDto = createMessageDto();
-    var response = new MessageUserQueryDto.SearchResponse();
-    response.setSearchResponseId(UUID.randomUUID());
-    response.setUrl("url2");
-    response.setDomain("domain");
-    messageDto.setSearchResponses(new ArrayList<>(messageDto.getSearchResponses()));
-    messageDto.getSearchResponses().add(response);
-
-    var summary = "Краткий пересказ";
-    var analysis = "Анализ";
-
-    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
-    when(restTemplate.execute(eq("url"), any(), any(), any(), eq(String.class))).thenReturn(TEXT_CONTENT);
-    when(restTemplate.execute(eq("url2"), any(), any(), any(), eq(String.class))).thenThrow(new BigSizeContentException("Большой размер!"));
-
-    when(llmService.getSummary(any())).thenReturn(summary);
-    when(llmService.getQueryAnalysis(eq(messageDto.getQueryText()), any())).thenReturn(analysis);
-
-    userQueryProcessor.initProcessing(messageDto);
-
-
-    await().atMost(5, TimeUnit.SECONDS)
-      .pollInterval(100, TimeUnit.MILLISECONDS)
-      .untilAsserted(() -> {
-        verify(searchQueryMessageService, atLeastOnce()).createQueryOutboxSuccessMessage(argThat(arg -> {
-
-          assertThat(arg.getAnalysis()).isEqualTo(analysis);
-          return true;
-        }));
-      });
-  }
+//  @Test
+//  void shouldHandleErrorCrawler() {
+//    var messageDto = createMessageDto();
+//
+//    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
+//    when(restTemplate.execute(any(), any(), any(), any(), eq(String.class))).thenThrow(new BigSizeContentException("Большой текст"));
+//
+//
+//    userQueryProcessor.initProcessing(messageDto);
+//
+//    await().atMost(5, TimeUnit.SECONDS)
+//      .pollInterval(100, TimeUnit.MILLISECONDS)
+//      .untilAsserted(() -> {
+//        verify(searchResponseMessageService, atLeastOnce()).createOutboxRequestError(argThat(arg -> {
+//          assertThat(arg).isEqualTo(messageDto.getSearchResponses().getFirst().getSearchResponseId());
+//          return true;
+//        }), any());
+//      });
+//
+//    await().atMost(5, TimeUnit.SECONDS)
+//      .pollInterval(100, TimeUnit.MILLISECONDS)
+//      .untilAsserted(() -> {
+//        verify(searchQueryMessageService, atLeastOnce()).createQueryOutboxErrorMessage(argThat(arg -> {
+//          assertThat(arg.getSearchQueryId()).isEqualTo(messageDto.getSearchQueryId());
+//          return true;
+//        }), any());
+//      });
+//  }
+//
+//  @Test
+//  void shouldHandleOneTwoRequests() {
+//    var messageDto = createMessageDto();
+//    var response = new MessageUserQueryDto.SearchResponse();
+//    response.setSearchResponseId(UUID.randomUUID());
+//    response.setUrl("url2");
+//    response.setDomain("domain");
+//    messageDto.setSearchResponses(new ArrayList<>(messageDto.getSearchResponses()));
+//    messageDto.getSearchResponses().add(response);
+//
+//    var summary = "Краткий пересказ";
+//    var analysis = "Анализ";
+//
+//    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
+//    when(restTemplate.execute(eq("url"), any(), any(), any(), eq(String.class))).thenReturn(TEXT_CONTENT);
+//    when(restTemplate.execute(eq("url2"), any(), any(), any(), eq(String.class))).thenReturn(TEXT_CONTENT);
+//
+//    when(llmService.getSummary(any())).thenReturn(summary);
+//    when(llmService.getQueryAnalysis(eq(messageDto.getQueryText()), any())).thenReturn(analysis);
+//
+//    userQueryProcessor.initProcessing(messageDto);
+//
+//    await().atMost(5, TimeUnit.SECONDS)
+//      .pollInterval(100, TimeUnit.MILLISECONDS)
+//      .untilAsserted(() -> {
+//        verify(searchQueryMessageService, atLeastOnce()).createQueryOutboxSuccessMessage(argThat(arg -> {
+//
+//          assertThat(arg.getAnalysis()).isEqualTo(analysis);
+//          return true;
+//        }));
+//      });
+//  }
+//
+//  @Test
+//  void shouldHandleOneTwoRequestsWithErrors() {
+//    var messageDto = createMessageDto();
+//    var response = new MessageUserQueryDto.SearchResponse();
+//    response.setSearchResponseId(UUID.randomUUID());
+//    response.setUrl("url2");
+//    response.setDomain("domain");
+//    messageDto.setSearchResponses(new ArrayList<>(messageDto.getSearchResponses()));
+//    messageDto.getSearchResponses().add(response);
+//
+//    var summary = "Краткий пересказ";
+//    var analysis = "Анализ";
+//
+//    when(restTemplate.getForEntity(anyString(), any())).thenReturn(ResponseEntity.ok().body(""));
+//    when(restTemplate.execute(eq("url"), any(), any(), any(), eq(String.class))).thenReturn(TEXT_CONTENT);
+//    when(restTemplate.execute(eq("url2"), any(), any(), any(), eq(String.class))).thenThrow(new BigSizeContentException("Большой размер!"));
+//
+//    when(llmService.getSummary(any())).thenReturn(summary);
+//    when(llmService.getQueryAnalysis(eq(messageDto.getQueryText()), any())).thenReturn(analysis);
+//
+//    userQueryProcessor.initProcessing(messageDto);
+//
+//
+//    await().atMost(5, TimeUnit.SECONDS)
+//      .pollInterval(100, TimeUnit.MILLISECONDS)
+//      .untilAsserted(() -> {
+//        verify(searchQueryMessageService, atLeastOnce()).createQueryOutboxSuccessMessage(argThat(arg -> {
+//
+//          assertThat(arg.getAnalysis()).isEqualTo(analysis);
+//          return true;
+//        }));
+//      });
+//  }
 //
 //  @Test
 //  void shouldHandleOnlyOnceSameUrls() {

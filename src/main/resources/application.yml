@@ -54,6 +54,7 @@ bundle:
     password: ${KAFKA_PASSWORD}
     kafka-url: ${KAFKA_URL}
     max-fetch-limit: 200
+    expiration-time: ${EXPIRATION_TIME:3600000}
 
 management:
   tracing:

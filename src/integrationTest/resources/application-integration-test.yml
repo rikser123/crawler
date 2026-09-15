@@ -32,6 +32,7 @@ bundle:
     kafka-url: http://localhost:9092
     user: user
     password: password
+    expiration-time: ${EXPIRATION_TIME:3600000}
 
 logbook:
   enabled: false

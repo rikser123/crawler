@@ -15,4 +15,5 @@ public class QueryResponseDto {
   private String domain;
   private UUID queryId;
   private String queryText;
+  private String passages;
 }

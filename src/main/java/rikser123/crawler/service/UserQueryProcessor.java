@@ -19,6 +19,7 @@ import rikser123.crawler.repository.entity.SearchQueryOutboxMessage;
 import rikser123.crawler.repository.entity.SearchResponseOutboxMessage;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
@@ -30,6 +31,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -97,23 +99,29 @@ public class UserQueryProcessor {
 
     var cachedSummaries = responses.stream()
       .collect(Collectors.toMap(r -> r.getSearchResponseId(), r -> {
-        var cache = redisCacheService.get(r.getUrl(), String.class);
-        return cache.isPresent() ? cache.get() : StringUtils.EMPTY;
+          var cache = redisCacheService.get(r.getUrl(), String.class);
+          return cache.isPresent() ? cache.get() : StringUtils.EMPTY;
         })
       );
     var cachedResponses = responses
       .stream()
       .filter(response -> StringUtils.isNotEmpty(cachedSummaries.get(response.getSearchResponseId())))
+      .map(response -> {
+        var searchContentDto = new SearchResponseDtoWithContent();
+        searchContentDto.setSearchResponse(response);
+        searchContentDto.setContent(cachedSummaries.get(response.getSearchResponseId()));
+        return searchContentDto;
+      })
       .toList();
     cachedResponses.forEach(response -> {
-      var successMessage = searchResponseMessageService.createOutboxSuccessMessage(response.getSearchResponseId());
+      var successMessage = searchResponseMessageService.createOutboxSuccessMessage(response.getSearchResponse().getSearchResponseId());
       responseMessageList.add(successMessage);
     });
 
     var futures = responses.stream()
       .filter(response ->
         cachedResponses.stream()
-          .noneMatch(resp -> resp.getSearchResponseId().equals(response.getSearchResponseId())))
+          .noneMatch(resp -> resp.getSearchResponse().getSearchResponseId().equals(response.getSearchResponseId())))
       .map(resp -> this.processUserSearchResponse(resp, responseMessageList))
       .toList();
     CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
@@ -123,36 +131,39 @@ public class UserQueryProcessor {
     var allFailed = results.stream().allMatch(Objects::isNull);
     searchResponseMessageService.saveAll(responseMessageList);
 
-   if (allFailed && cachedResponses.isEmpty()) {
-     handleFailedQueries(userQueryDto, "Обработка всех ответов от яндекса завершился ошибкой!");
-     return;
-   }
-   var texts = new ArrayList<String>();
-   texts.addAll(results.stream().filter(StringUtils::isNotEmpty).toList());
-   texts.addAll(cachedSummaries.values().stream().filter(StringUtils::isNotEmpty).toList());
-   var queryDto = userQueryMapper.mapToAnalysisDto(userQueryDto);
-   queryDto.setTexts(texts);
+    if (allFailed && cachedResponses.isEmpty()) {
+      handleFailedQueries(userQueryDto, "Обработка всех ответов от яндекса завершился ошибкой!");
+      return;
+    }
+    var successResults = results.stream().filter(res -> !Objects.isNull(res)).toList();
+    var texts = Stream.of(successResults, cachedResponses)
+      .flatMap(Collection::stream)
+      .filter(resp -> StringUtils.isNotEmpty(resp.getContent()))
+      .toList();
 
-   SearchQueryOutboxMessage message;
+    var queryDto = userQueryMapper.mapToAnalysisDto(userQueryDto);
+    queryDto.setContents(texts);
 
-   try {
-     var result = queryAnalizer.makeAnalysis(queryDto);
-     message = searchQueryMessageService.createQueryOutboxSuccessMessage(result);
+    SearchQueryOutboxMessage message;
 
-     prometheusMetrics.incrementSuccessQuery();
-   } catch (Exception e) {
-     log.warn("Не удалось обработать пересказы", e);
-     var analysisDto = new UserQueryAnalysisDto();
-     analysisDto.setUserId(queryDto.getUserId());
-     analysisDto.setSearchQueryId(queryDto.getSearchQueryId());
-     message = searchQueryMessageService.createQueryOutboxErrorMessage(analysisDto, "Не удалось обработать пересказы!");
+    try {
+      var result = queryAnalizer.makeAnalysis(queryDto);
+      message = searchQueryMessageService.createQueryOutboxSuccessMessage(result);
 
-     prometheusMetrics.incrementFailQuery();
-   }
-   searchQueryMessageService.save(message);
+      prometheusMetrics.incrementSuccessQuery();
+    } catch (Exception e) {
+      log.warn("Не удалось обработать пересказы", e);
+      var analysisDto = new UserQueryAnalysisDto();
+      analysisDto.setUserId(queryDto.getUserId());
+      analysisDto.setSearchQueryId(queryDto.getSearchQueryId());
+      message = searchQueryMessageService.createQueryOutboxErrorMessage(analysisDto, "Не удалось обработать пересказы!");
+
+      prometheusMetrics.incrementFailQuery();
+    }
+    searchQueryMessageService.save(message);
   }
 
-  private CompletableFuture<String> processUserSearchResponse(
+  private CompletableFuture<SearchResponseDtoWithContent> processUserSearchResponse(
     QueryResponseDto response, List<SearchResponseOutboxMessage> messageList
   ) {
     prometheusMetrics.incrementQueryResponse();
@@ -166,17 +177,18 @@ public class UserQueryProcessor {
           throw new RuntimeException(e);
         }
         return crawler.download(response);
-    }, executors)
+      }, executors)
       .thenApply(textExtractor::extractText)
       .thenApply(chunkSplitter::split)
       .thenApply(summariser::summarise)
-      .orTimeout(60, TimeUnit.SECONDS)
+      .orTimeout(120, TimeUnit.SECONDS)
       .handle((result, error) -> {
         if (acquired.get()) {
           semaphore.release();
         }
         if (error != null || result == null) {
           prometheusMetrics.incrementFailResponse();
+          log.warn("error parsing text {}", error);
 
           var message = searchResponseMessageService.createOutboxRequestError(
             response.getSearchResponseId(),
@@ -188,7 +200,7 @@ public class UserQueryProcessor {
 
         var message = searchResponseMessageService.createOutboxSuccessMessage(response.getSearchResponseId());
         messageList.add(message);
-        return result.getContent();
+        return result;
       });
   }
 
