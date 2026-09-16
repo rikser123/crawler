@@ -20,6 +20,7 @@ import rikser123.crawler.repository.entity.SearchResponseOutboxMessage;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
@@ -41,7 +42,7 @@ public class UserQueryProcessor {
   private final TextExtractor textExtractor;
   private final ChunkSplitter chunkSplitter;
   private final Summariser summariser;
-  private final QueryAnalizer queryAnalizer;
+  private final QueryAnalyzer queryAnalizer;
   private final SearchResponseMessageService searchResponseMessageService;
   private final UserQueryMapper userQueryMapper;
   private final SearchQueryMessageService searchQueryMessageService;
@@ -90,7 +91,7 @@ public class UserQueryProcessor {
 
   private void processUserQuery(UserQueryDto userQueryDto) {
     prometheusMetrics.incrementSearchQuery();
-    var responseMessageList = new ArrayList<SearchResponseOutboxMessage>();
+    var responseMessageList = Collections.synchronizedList(new ArrayList<SearchResponseOutboxMessage>());
 
     var responses = userQueryDto.getSearchResponses()
       .stream()
