@@ -34,7 +34,7 @@ public class QueryConsumer {
       var data = objectMapper.readValue(message, MessageUserQueryDto.class);
       searchQueryId = data.getSearchQueryId();
       userId = data.getUserId();
-//      validator.validate(data);
+      validator.validate(data);
 
       userQueryProcessor.initProcessing(data);
     } catch (Exception e) {
