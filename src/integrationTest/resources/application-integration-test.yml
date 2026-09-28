@@ -59,8 +59,8 @@ llm:
   url: http://localhost:8081
   summary_model: qwen3.6-flash
   analysis_model: qwen3.6-flash
-  aggregation_model: qwen3.6-flash
   timeout: 60
+  summary-timeout: 60
 
 response-cache:
   ttl: PT1H

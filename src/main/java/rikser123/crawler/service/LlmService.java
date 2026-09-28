@@ -1,13 +1,16 @@
 package rikser123.crawler.service;
 
+import feign.Request;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Service;
 import rikser123.crawler.dto.llm.LlmRequestDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
 import rikser123.crawler.feign.LlmClient;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 
@@ -23,13 +26,17 @@ public class LlmService {
   @Value("${llm.summary_model}")
   private String llmSummaryModel;
 
-  @Value("${llm.aggregation_model}")
-  private String llmAggregationModel;
-
   @Value("${llm.analysis_model}")
   private String llmAnalysisModel;
 
+  @Value("${llm.summary-timeout}")
+  private Integer summaryTimeout;
+
+  private final Request.Options llmOptions;
+
+
   public String getSummary(List<String> chunks) {
+    var summaryOptions = new Request.Options(Duration.ofSeconds(5), Duration.ofSeconds(summaryTimeout), false);
     var prompt = String.format("""
       Ты — экстрактор фактов и аргументов. Из текста ниже извлеки атомарные утверждения и их контекст.
 
@@ -82,7 +89,7 @@ public class LlmService {
       .responseFormat(new LlmRequestDto.ResponseFormat("json_object"))
       .build();
 
-    return fetchModelRequest(llmRequest);
+    return fetchModelRequest(llmRequest, summaryOptions);
   }
 
   public String getClusters(String userQuery, List<SearchResponseDtoWithContent> searchDtos) {
@@ -128,7 +135,7 @@ public class LlmService {
       .responseFormat(new LlmRequestDto.ResponseFormat("json_object"))
       .build();
 
-    return fetchModelRequest(llmRequest);
+    return fetchModelRequest(llmRequest, llmOptions);
   }
 
   public String getAnalysisCluster(String userQuery,String cluster, List<SearchResponseDtoWithContent> contents) {
@@ -167,13 +174,13 @@ public class LlmService {
     """, userQuery, cluster, String.join("\n\n---\n\n", summaries));
 
     var llmRequest = LlmRequestDto.builder().
-      model(llmSummaryModel)
+      model(llmAnalysisModel)
       .maxTokens(4000)
       .temperature(0.5)
       .messages(List.of(new LlmRequestDto.Message("user", prompt)))
       .build();
 
-    return fetchModelRequest(llmRequest);
+    return fetchModelRequest(llmRequest, llmOptions);
   }
 
   public String getClustersSynthesis(String userQuery, List<String> clusters) {
@@ -215,13 +222,13 @@ public class LlmService {
         """, userQuery, String.join("\n\n---\n\n", clusters));
 
     var llmRequest = LlmRequestDto.builder().
-      model(llmSummaryModel)
+      model(llmAnalysisModel)
       .maxTokens(5000)
       .temperature(0.7)
       .messages(List.of(new LlmRequestDto.Message("user", prompt)))
       .build();
 
-    return fetchModelRequest(llmRequest);
+    return fetchModelRequest(llmRequest, llmOptions);
   }
 
   public String getCritic(String userQuery, String synthesis) {
@@ -256,13 +263,13 @@ public class LlmService {
         """, userQuery, synthesis);
 
     var llmRequest = LlmRequestDto.builder().
-      model(llmSummaryModel)
+      model(llmAnalysisModel)
       .maxTokens(2000)
       .temperature(0.7)
       .messages(List.of(new LlmRequestDto.Message("user", prompt)))
       .build();
 
-    return fetchModelRequest(llmRequest);
+    return fetchModelRequest(llmRequest, llmOptions);
   }
 
   public String getAnalysis(String userQuery, String synthesis, String critic, List<String> clusters) {
@@ -320,165 +327,20 @@ public class LlmService {
     """, userQuery, synthesis, critic, clusters);
 
     var llmRequest = LlmRequestDto.builder().
-      model(llmSummaryModel)
+      model(llmAnalysisModel)
       .maxTokens(7000)
       .temperature(0.9)
       .messages(List.of(new LlmRequestDto.Message("user", prompt)))
       .build();
 
-    return fetchModelRequest(llmRequest);
+    return fetchModelRequest(llmRequest, llmOptions);
   }
 
-
-//  public String getAggregationReport(List<String> summaries) {
-//    var aggregatorPrompt = String.format("""
-//      Ты — агрегатор. На вход подаётся JSON-массив извлечённых данных
-//      из 30–50 источников на одну тему. Каждый элемент массива — объект
-//      с полями: source_url, topic, summary, claims[], contradictions[], timeline[].
-//
-//      Создай итоговый JSON-отчёт по схеме ниже. Все данные — ТОЛЬКО из входного массива.
-//
-//      === КАК РАБОТАТЬ С ВХОДОМ ===
-//      1. Каждый claim из поля claims — это отдельное утверждение с полями
-//         text, type, quote, entities, date.
-//      2. Каждый claim привязан к source_url своего JSON-объекта — это его источник.
-//      3. Если одинаковые по смыслу claims встречаются в разных JSON-объектах —
-//         объедини их в один и собери все source_url в массив sources.
-//      4. sources_count = число УНИКАЛЬНЫХ URL, подтверждающих claim.
-//      5. Поле type у claim используй для классификации:
-//         fact / statistic / date → в consensus или unique_facts,
-//         opinion → в contradictions (если есть противоположные мнения),
-//         forecast → в timeline.trends или в claims сущностей.
-//
-//      === СХЕМА JSON ===
-//      {
-//        "topic": "строка (главная тема, 1 предложение)",
-//        "consensus": [
-//          {
-//            "claim": "строка (утверждение из >60%% источников)",
-//            "sources_count": "число (уникальных URL)",
-//            "sources": ["массив строк (URL из source_url)"]
-//          }
-//        ],
-//        "contradictions": [
-//          {
-//            "question": "строка (вопрос, по которому есть разногласия)",
-//            "group_a": {
-//              "position": "строка (позиция группы А)",
-//              "sources": ["массив строк (URL)"],
-//              "count": "число"
-//            },
-//            "group_b": {
-//              "position": "строка (позиция группы Б)",
-//              "sources": ["массив строк (URL)"],
-//              "count": "число"
-//            }
-//          }
-//        ],
-//        "unique_facts": [
-//          {
-//            "fact": "строка (факт из 1-2 источников)",
-//            "source": "строка (URL)",
-//            "importance": "high | medium | low"
-//          }
-//        ],
-//        "clusters": {
-//          "название_кластера": ["массив строк (URL)"]
-//        },
-//        "timeline": {
-//          "events": [
-//            {
-//              "date": "строка (дата из claim.date или timeline)",
-//              "event": "строка (событие)",
-//              "sources_count": "число"
-//            }
-//          ],
-//          "trends": ["массив строк (тренды)"]
-//        },
-//        "entities": {
-//          "название_сущности": {
-//            "mentions": "число (сколько раз упомянута во входе)",
-//            "claims": ["массив строк (утверждения о сущности)"]
-//          }
-//        },
-//        "missing_gaps": ["массив строк (вопросы без ответа)"],
-//        "generated_questions": ["массив строк (уточняющие вопросы для пользователя)"]
-//      }
-//
-//      === ПРАВИЛА ===
-//      1. Все факты ТОЛЬКО из входного JSON — НЕ ВЫДУМЫВАЙ.
-//      2. Каждому утверждению обязательно сопоставь source_url из входных данных.
-//      3. Если данных для секции нет — пиши null или пустой массив.
-//      4. Названия кластеров придумай сам, отражая суть позиции источников.
-//      5. Все числа (sources_count, mentions) — реальный подсчёт по входу, не выдуманные.
-//      6. Дедуплицируй claims: одинаковые по смыслу — в одну запись.
-//      7. Claim в consensus попадает, только если подтверждён >60%% уникальных источников.
-//      8. Claim, подтверждённый 1–2 источниками, идёт в unique_facts, а не в consensus.
-//      9. Не пересказывай вход — агрегируй. Никакого текста вне JSON.
-//
-//      Входной JSON-массив:
-//      %s
-//      """, String.join(" ,", summaries));
-//    return fetchModelRequest(aggregatorPrompt, llmAggregationModel, 2500, false);
-//  }
-
-//  public String getQueryAnalysis(String userQuery, String aggregationReport) {
-//    var prompt = String.format("""
-//      Ты — аналитик. У тебя есть JSON-отчёт по 30–50 источникам.
-//      Создай структурированный ответ пользователю.
-//      Каждый пересказ в конце содержит источник в виде урла. Используй его в тексте как ссылку для сносок.
-//      === ЗАПРОС ПОЛЬЗОВАТЕЛЯ ===
-//      %s
-//      === JSON-ОТЧЁТ ===
-//      %s
-//      === СТРУКТУРА ОТВЕТА ===
-//      ## Главный вывод
-//      (2-3 предложения, самый важный инсайт из всех источников)
-//      ## Детальный анализ по темам
-//      (Разбей на 3-5 логических блоков)
-//      - Тема 1: факты, количество источников, примеры URL
-//      - Тема 2: факты, количество источников, примеры URL
-//      ## Противоречия и спорные моменты
-//      (Где источники расходятся?)
-//      - Вопрос: ...
-//        - Группа А (X источников): позиция → URL
-//        - Группа Б (Y источников): позиция → URL
-//      ## Уникальные инсайты
-//      (Что нашли только в 1-2 источниках?)
-//      - Инсайт 1 → источник
-//      - Инсайт 2 → источник
-//      ## Ключевые игроки и их позиции
-//      (Компании/персоны, которые упоминаются чаще всего)
-//      - Игрок 1: позиция, ключевые заявления
-//      - Игрок 2: позиция, ключевые заявления
-//      ## Хронология и тренды
-//      (Как менялась ситуация во времени?)
-//      - Ключевые события по датам
-//      - Основные тренды
-//      ## Чего не хватает
-//      (Какие вопросы остались без ответа?)
-//      ## Рекомендации и следующие шаги
-//      (Что делать на основе анализа?)
-//      - Рекомендация 1
-//      - Уточняющий вопрос для пользователя
-//      === ПРАВИЛА ===
-//      1. Каждый факт подтверждай источниками: [Источник: url.com]
-//      2. Для противоречий: [Группа А: url1, url2 | Группа Б: url3, url4]
-//      3. НЕ ВЫДУМЫВАЙ факты, которых нет в отчёте
-//      4. Будь конкретен: цифры, даты, имена
-//      5. Если данных для раздела нет — пропусти его
-//      6. В конце не надо блок Уточняющий вопрос для пользователя
-//      7. Сразу делай красивое форматирование, а не кучей текст.
-//      8. При анализе источников укажи их ранжирование по авторитетности
-//      """, userQuery, aggregationReport);
-//    return fetchModelRequest(prompt, llmAnalysisModel, 2000, true);
-//  }
-
-  private String fetchModelRequest(LlmRequestDto requestDto) {
+  private String fetchModelRequest(LlmRequestDto requestDto, Request.Options options) {
     var model = requestDto.getModel();
 
     try {
-      var response = llmClient.getResponses(requestDto, "Bearer " + llmToken);
+      var response = llmClient.getResponses(requestDto, "Bearer " + llmToken, options);
       if (!Objects.isNull(response.getError())) {
         log.warn("Не удалось получить ответ от", model);
         throw new IllegalStateException("Не удалось получить ответ модели");

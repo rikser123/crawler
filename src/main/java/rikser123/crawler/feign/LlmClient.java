@@ -1,5 +1,6 @@
 package rikser123.crawler.feign;
 
+import feign.Request;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -10,13 +11,13 @@ import rikser123.crawler.dto.llm.LlmResponseDto;
 
 @FeignClient(
   name = "llm-client",
-  url = "${llm.url}",
-  configuration = LlmFeignConfig.class
+  url = "${llm.url}"
 )
 public interface LlmClient {
   @PostMapping("/chat/completions")
   LlmResponseDto getResponses(
     @RequestBody LlmRequestDto llmRequestDto,
-    @RequestHeader("Authorization") String authorization
+    @RequestHeader("Authorization") String authorization,
+    Request.Options options
   );
 }

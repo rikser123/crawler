@@ -80,7 +80,7 @@ fetch:
   timeout-queue-limit: ${TIMEOUT_QUEUE_LIMIT:50}
   max-download-attempt: ${MAX_DOWNLOAD_ATTEMPT:3}
   repeat-download-delay: ${REPEAT_DOWNLOAD_ATTEMPT:3}
-  max-body-size: ${MAX_BODY_SIZE:1 024 000}
+  max-body-size: ${MAX_BODY_SIZE:2 024 000}
   chunk-size: ${CHUNK_SIZE:2000}
   word-overlap-count: ${WORD_OVERLAP_COUNT:200}
   clear-delay: ${CLEAR_DELAY:300}
@@ -96,9 +96,9 @@ llm:
   token: ${LLM_TOKEN}
   url: ${LLM_URL}
   summary_model: ${LLM_SUMMARY_MODEL:qwen3.6-flash}
-  aggregation_model: ${LLM_AGGREGATION_MODEL:qwen3.8-flash}
   analysis_model: ${LLM_ANALYSIS_MODEL:qwen3.8-flash}
   timeout: ${LLM_CONNECTION_TIMEOUT:360}
+  summary-timeout: ${LLM_SUMMARY_TIMEOUT:200}
 
 response-cache:
   ttl: PT1H

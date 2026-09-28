@@ -182,7 +182,7 @@ public class UserQueryProcessor {
       .thenApply(textExtractor::extractText)
       .thenApply(chunkSplitter::split)
       .thenApply(summariser::summarise)
-      .orTimeout(120, TimeUnit.SECONDS)
+      .orTimeout(240, TimeUnit.SECONDS)
       .handle((result, error) -> {
         if (acquired.get()) {
           semaphore.release();
