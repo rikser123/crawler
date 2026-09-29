@@ -4,6 +4,8 @@ import feign.Request;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import rikser123.crawler.dto.llm.LlmRequestDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
@@ -36,7 +38,10 @@ public class LlmService {
 
   private final Request.Options llmOptions;
 
-
+  @Retryable(
+    maxAttempts = 3,
+    backoff = @Backoff(delay = 1000, multiplier = 2.0, maxDelay = 5000)
+  )
   public String getSummary(List<String> chunks) {
     var summaryOptions = new Request.Options(Duration.ofSeconds(5), Duration.ofSeconds(summaryTimeout), false);
     var prompt = String.format("""
