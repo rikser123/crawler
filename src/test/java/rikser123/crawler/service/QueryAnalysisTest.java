@@ -84,7 +84,6 @@ public class QueryAnalysisTest {
 
   private String getClustersJson() {
     return """
-      ```json
       {
         "clusters": [
           {
@@ -108,7 +107,7 @@ public class QueryAnalysisTest {
             ]
           }       
         ]
-      }```
+      }
       """;
   }
 }

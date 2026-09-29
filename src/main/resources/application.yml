@@ -96,7 +96,8 @@ llm:
   token: ${LLM_TOKEN}
   url: ${LLM_URL}
   summary_model: ${LLM_SUMMARY_MODEL:qwen3.6-flash}
-  analysis_model: ${LLM_ANALYSIS_MODEL:qwen3.8-flash}
+  synthesis_model: ${LLM_ANALYSIS_MODEL:qwen3.8-flash}
+  analysis_model: ${LLM_ANALYSIS_MODEL:qwen3.8-max}
   timeout: ${LLM_CONNECTION_TIMEOUT:360}
   summary-timeout: ${LLM_SUMMARY_TIMEOUT:200}
 

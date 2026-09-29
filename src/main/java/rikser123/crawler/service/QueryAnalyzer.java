@@ -105,7 +105,7 @@ public class QueryAnalyzer {
     String clustersJson,
     List<SearchResponseDtoWithContent> contents
   ) throws JsonProcessingException {
-      var clustersDto = objectMapper.readValue(clustersJson.replaceAll("(?s)^\\s*```json\\s*(.*?)\\s*```\\s*$", "$1"), LlmClusters.class);
+      var clustersDto = objectMapper.readValue(clustersJson, LlmClusters.class);
       var clusters = clustersDto.getClusters();
 
       return clusters.stream().collect(Collectors.toMap(x -> x, cluster -> {

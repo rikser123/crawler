@@ -4,7 +4,6 @@ import feign.Request;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Service;
 import rikser123.crawler.dto.llm.LlmRequestDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
@@ -29,6 +28,9 @@ public class LlmService {
   @Value("${llm.analysis_model}")
   private String llmAnalysisModel;
 
+  @Value("${llm.synthesis_model}")
+  private String llmSynthesisModel;
+
   @Value("${llm.summary-timeout}")
   private Integer summaryTimeout;
 
@@ -49,34 +51,43 @@ public class LlmService {
           {
             "text": "атомарное утверждение (одна мысль)",
             "type": "fact | statistic | date | forecast | opinion | definition",
-            "quote": "дословная цитата",
             "entities": ["организации, персоны, продукты"],
             "date": "дата события или публикации",
             "assumptions": ["допущения, на которых держится утверждение"],
-            "causal_links": [
-              {"cause": "причина", "effect": "следствие", "mechanism": "как именно"}
-            ],
-            "counterarguments": ["что в тексте говорит против"],
-            "conditions": ["при каких условиях утверждение верно"],
             "confidence": "явно | предположительно | оценочно"
           }
-        ],
-        "contradictions": [
-          {"question": "вопрос спора", "position": "позиция автора"}
-        ],
-        "timeline": [
-          {"date": "дата", "event": "событие"}
         ]
       }
-  
+
+      === ЧТО ИЗВЛЕКАТЬ ===
+      Только утверждения, которые влияют на ответ пользователю:
+      - конкретные факты с числами, датами, именами
+      - статистика и метрики
+      - прогнозы и оценки с указанием, кто их даёт
+      - прямые цитаты ключевых фигур (в поле text, если это важно)
+      - определения, если они раскрывают суть темы
+      - противоречия между авторами (оформи как два отдельных claim)
+
+      === ЧТО НЕ ИЗВЛЕКАТЬ ===
+      - описание структуры статьи («в этой статье мы рассмотрим»)
+      - общеизвестные факты без контекста («Биткоин — это криптовалюта»)
+      - рекламные формулировки, призывы, ссылки на другие материалы
+      - сведения об авторе статьи (если автор не является субъектом темы)
+      - повторы одной и той же мысли разными словами — оставляй один claim
+      - вводные конструкции и «воду»
+
       === ПРАВИЛА ===
-      1. Извлекай ВСЕ утверждения. Лучше 40, чем 10.
+      1. Целевой объём: 10–25 claims. Если в тексте только 5 значимых
+         утверждений — верни 5, не добивай до 25 ради числа.
       2. Каждый claim атомарен. «Вырос на 20%% и планирует IPO» → два claim.
       3. Для каждого forecast ОБЯЗАТЕЛЬНО заполни assumptions.
-         Если в тексте допущение не указано явно — выведи его сам и пометь [выведено].
-      4. Сохраняй все цифры, даты, имена дословно.
-      5. Никакого текста вне JSON. Без markdown-обёрток.
-  
+         Если в тексте допущение не указано явно — выведи его сам
+         и пометь [выведено].
+      4. Сохраняй все цифры, даты, имена дословно. Не перефразируй числа.
+      5. Если два утверждения противоречат друг другу — оставь оба,
+         но пометь в text: «[противоречие с ...]».
+      6. Никакого текста вне JSON. Без markdown-обёрток.
+
       Текст:
       %s
     """, String.join("\n\n---\n\n", chunks));
@@ -127,10 +138,12 @@ public class LlmService {
       %s
       """, userQuery, String.join("\n\n---\n\n", passages));
 
+    log.info("getClusters");
+
     var llmRequest = LlmRequestDto.builder().
        model(llmSummaryModel)
-      .maxTokens(2000)
-      .temperature(0.3)
+      .maxTokens(5000)
+      .temperature(0.1)
       .messages(List.of(new LlmRequestDto.Message("user", prompt)))
       .responseFormat(new LlmRequestDto.ResponseFormat("json_object"))
       .build();
@@ -140,7 +153,6 @@ public class LlmService {
 
   public String getAnalysisCluster(String userQuery,String cluster, List<SearchResponseDtoWithContent> contents) {
     var summaries = contents.stream().map(content -> content.getContent()).toList();
-    log.warn("summuries {}", summaries);
     var prompt = String.format("""
      Ты — аналитик. Запрос пользователя: %s
 
@@ -173,10 +185,13 @@ public class LlmService {
     %s
     """, userQuery, cluster, String.join("\n\n---\n\n", summaries));
 
+    log.info("getAnalysisCluster");
+
+
     var llmRequest = LlmRequestDto.builder().
-      model(llmAnalysisModel)
-      .maxTokens(4000)
-      .temperature(0.5)
+      model(llmSummaryModel)
+      .maxTokens(5000)
+      .temperature(0.3)
       .messages(List.of(new LlmRequestDto.Message("user", prompt)))
       .build();
 
@@ -221,10 +236,15 @@ public class LlmService {
         %s
         """, userQuery, String.join("\n\n---\n\n", clusters));
 
+    log.info("getClustersSynthesis: {}");
+
+
     var llmRequest = LlmRequestDto.builder().
-      model(llmAnalysisModel)
-      .maxTokens(5000)
-      .temperature(0.7)
+       model(llmSynthesisModel)
+      .enableThinking(true)
+      .reasoningEffort("medium")
+      .maxTokens(6000)
+      .temperature(0.5)
       .messages(List.of(new LlmRequestDto.Message("user", prompt)))
       .build();
 
@@ -262,10 +282,15 @@ public class LlmService {
         %s
         """, userQuery, synthesis);
 
+    log.info("getCritic");
+
+
     var llmRequest = LlmRequestDto.builder().
-      model(llmAnalysisModel)
-      .maxTokens(2000)
-      .temperature(0.7)
+       model(llmSynthesisModel)
+      .enableThinking(true)
+      .reasoningEffort("medium")
+      .maxTokens(5000)
+      .temperature(0.6)
       .messages(List.of(new LlmRequestDto.Message("user", prompt)))
       .build();
 
@@ -326,10 +351,15 @@ public class LlmService {
         %s
     """, userQuery, synthesis, critic, clusters);
 
+    log.info("getAnalysis: {}");
+
+
     var llmRequest = LlmRequestDto.builder().
       model(llmAnalysisModel)
-      .maxTokens(7000)
-      .temperature(0.9)
+      .enableThinking(true)
+      .reasoningEffort("medium")
+      .maxTokens(8000)
+      .temperature(0.3)
       .messages(List.of(new LlmRequestDto.Message("user", prompt)))
       .build();
 
