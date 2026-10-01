@@ -2,7 +2,11 @@ package rikser123.crawler.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.snowball.SnowballFilter;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
@@ -14,6 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.tartarus.snowball.ext.RussianStemmer;
 import rikser123.bundle.service.RedisCacheService;
 import rikser123.crawler.component.PrometheusMetrics;
 import rikser123.crawler.config.FetchConfigProperties;
@@ -28,12 +33,22 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class Summariser {
-  private static final int CHUNKS_COUNT = 2;
+  private static final int CHUNKS_COUNT = 3;
 
   private final FetchConfigProperties fetchProperties;
   private final LlmService llmService;
   private final PrometheusMetrics prometheusMetrics;
   private final RedisCacheService redisCacheService;
+
+  private static final Analyzer RUSSIAN_ANALYZER = new Analyzer() {
+    @Override
+    protected TokenStreamComponents createComponents(String fieldName) {
+      var source = new StandardTokenizer();
+      TokenStream stream = new LowerCaseFilter(source);
+      stream = new SnowballFilter(stream, new RussianStemmer());
+      return new TokenStreamComponents(source, stream);
+    }
+  };
 
   @Value("${response-cache.ttl}")
   private String cacheTtl;
@@ -76,13 +91,12 @@ public class Summariser {
     var chunks = searchResponseDto.getChunks();
     var queryText = searchResponseDto.getSearchResponse().getQueryText();
 
-    if (chunks.size() <= 2) {
+    if (chunks.size() <= CHUNKS_COUNT) {
       return chunks;
     }
 
     var relevantChunks = new ArrayList<String>();
-    var analyzer = new StandardAnalyzer();
-    var config = new IndexWriterConfig(analyzer);
+    var config = new IndexWriterConfig(RUSSIAN_ANALYZER);
 
     try (var directory = new ByteBuffersDirectory();
          var writer = new IndexWriter(directory, config)
@@ -97,12 +111,12 @@ public class Summariser {
 
       try (var reader = DirectoryReader.open(directory)) {
         var searcher = new IndexSearcher(reader);
-        var parser = new QueryParser("content", analyzer);
-        var query = parser.parse(queryText);
+        var parser = new QueryParser("content", RUSSIAN_ANALYZER);
+        var query = parser.parse(QueryParser.escape(queryText));
         var hits = searcher.search(query, CHUNKS_COUNT).scoreDocs;
 
         if (hits.length == 0) {
-          throw new IllegalStateException("Не удалось определить релевантные чанки");
+          return chunks.subList(0, CHUNKS_COUNT);
         }
 
         for (var hit : hits) {

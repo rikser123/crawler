@@ -92,19 +92,25 @@ public class SummariserTest {
   }
 
   @Test
-  void shouldSendErrorMessageIfNoChunks() {
+  void shouldReturnDefaultChunksIfIncorrectQuery() {
     var dto = new SearchResponseDtoWithChunks();
     var searchResponse = new QueryResponseDto();
     searchResponse.setQueryText("aaaaaaaaaaaaaaa");
+    searchResponse.setUrl("url");
     dto.setSearchResponse(searchResponse);
     dto.setAttempt(0);
     dto.setChunks(List.of("Эй вы там", "Эй вы там", "Эй вы там"));
 
-    assertThatThrownBy(() ->  summariser.summarise(dto)).isInstanceOf(IllegalStateException.class);
+    summariser.summarise(dto);
+
+    verify(llmService, atLeastOnce()).getSummary(argThat(arg -> {
+      assertThat(arg).contains("Эй вы там");
+      return true;
+    }));
   }
 
   @Test
-  void shouldSendErrorIfBothubUnavailable() {
+  void shouldSendErrorIfLlmUnavailable() {
     var dto = new SearchResponseDtoWithChunks();
     var searchResponse = new QueryResponseDto();
     searchResponse.setQueryText("aaaaaaaaaaaaaaa");
@@ -112,7 +118,7 @@ public class SummariserTest {
     dto.setAttempt(0);
     dto.setChunks(List.of("Эй вы там", "Эй вы там"));
 
-    when(llmService.getSummary(any())).thenThrow(new IllegalStateException("Не удалось получить данные из Bothub"));
+    when(llmService.getSummary(any())).thenThrow(new IllegalStateException("Не удалось получить данные от llm"));
 
     assertThatThrownBy(() ->  summariser.summarise(dto)).isInstanceOf(IllegalStateException.class);
   }
