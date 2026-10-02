@@ -8,9 +8,9 @@ import org.springframework.web.client.ResponseExtractor;
 import rikser123.crawler.config.FetchConfigProperties;
 import rikser123.crawler.exception.BigSizeContentException;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 @Component
 @Slf4j
@@ -20,25 +20,35 @@ public class CrawlerResponseExtractor implements ResponseExtractor<String> {
 
   @Override
   public String extractData(ClientHttpResponse response) throws IOException {
-    var body = response.getBody();
     var maxSizeInBytes = fetchConfigProperties.getMaxBodySize();
-    var content = new StringBuilder();
+    var contentLength = response.getHeaders().getContentLength();
+    var errorMessage = "Размер скаченного контента превышает "  + maxSizeInBytes;
 
-    try (var reader = new BufferedReader(new InputStreamReader(body))) {
-        var totalSize = 0;
-        char[] buffer = new char[8192];
-        int charsRead;
-
-      while ((charsRead = reader.read(buffer)) != -1) {
-        totalSize += charsRead * 3;
-
-        if (totalSize >= maxSizeInBytes) {
-          throw new BigSizeContentException("Размер скаченного контента превышает "  + maxSizeInBytes);
-        }
-        content.append(buffer, 0, charsRead);
-      }
-
-      return content.toString();
+    if (contentLength > maxSizeInBytes) {
+      log.warn(errorMessage);
+      throw new BigSizeContentException(errorMessage);
     }
+
+    byte[] bytes;
+
+    try (var body = response.getBody()) {
+     bytes = body.readNBytes(maxSizeInBytes + 1);
+    }
+
+    if (bytes.length > maxSizeInBytes) {
+      log.warn(errorMessage);
+      throw new BigSizeContentException(errorMessage);
+    }
+
+
+   return new String(bytes, resolveCharset(response));
+  }
+
+  private Charset resolveCharset(ClientHttpResponse response) {
+    var contentType = response.getHeaders().getContentType();
+    if (contentType != null && contentType.getCharset() != null) {
+      return contentType.getCharset();
+    }
+    return StandardCharsets.UTF_8;
   }
 }
