@@ -11,6 +11,7 @@ import rikser123.crawler.dto.llm.LlmClusters;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
 import rikser123.crawler.dto.userQuery.QueryAnalysisDto;
 import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
+import rikser123.crawler.dto.userQuery.YandexSearchMode;
 
 import java.util.List;
 import java.util.Map;
@@ -46,7 +47,13 @@ public class QueryAnalyzer {
   public UserQueryAnalysisDto makeAnalysis(QueryAnalysisDto request) {
     try {
       var userQuery = request.getQueryText();
+      var searchMode = request.getSearchMode();
       var contents = request.getContents();
+
+      if (searchMode == YandexSearchMode.SHORT) {
+        var analysis = llmService.getImmediateAnalysis(userQuery, contents.stream().map(SearchResponseDtoWithContent::getContent).toList());
+        return createAnalysisDto(request, analysis);
+      }
 
       var clusters = llmService.getClusters(userQuery, contents);
       var clustersMap = groupSummariesByClusters(clusters, contents);

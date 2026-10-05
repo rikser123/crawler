@@ -15,5 +15,6 @@ public class UserQueryDto {
   private UUID searchQueryId;
   private UUID userId;
   private String queryText;
+  private YandexSearchMode searchMode;
   private List<SearchResponseDtoWithContent> searchResponses;
 }

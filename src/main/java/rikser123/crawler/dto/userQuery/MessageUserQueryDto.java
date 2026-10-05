@@ -25,6 +25,9 @@ public class MessageUserQueryDto {
   @NotNull(message = "Параметр userId должен быть заполнен!")
   private UUID userId;
 
+  @NotNull(message = "Параметр searchMode должен быть заполнен!")
+  private YandexSearchMode searchMode;
+
   private List<@Valid SearchResponse> searchResponses;
 
   @Data
