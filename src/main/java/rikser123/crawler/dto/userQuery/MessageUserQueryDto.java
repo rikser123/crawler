@@ -28,6 +28,8 @@ public class MessageUserQueryDto {
   @NotNull(message = "Параметр searchMode должен быть заполнен!")
   private YandexSearchMode searchMode;
 
+  private UUID customPromptId;
+
   private List<@Valid SearchResponse> searchResponses;
 
   @Data

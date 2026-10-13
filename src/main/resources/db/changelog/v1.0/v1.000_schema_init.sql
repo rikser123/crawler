@@ -21,3 +21,13 @@ CREATE TABLE shedlock (
   locked_by VARCHAR(255) NOT NULL
 );
 
+CREATE TABLE custom_prompt (
+   id UUID PRIMARY KEY,
+   text VARCHAR(2000) NOT NULL,
+   name VARCHAR(200) NOT NULL,
+   user_id UUID NOT NULL,
+   mode VARCHAR(20) NOT NULL,
+   created TIMESTAMP WITH TIME ZONE NOT NULL,
+   updated TIMESTAMP WITH TIME ZONE
+);
+
