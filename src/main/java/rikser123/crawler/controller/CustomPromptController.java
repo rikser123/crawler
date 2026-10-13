@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,12 +36,14 @@ public class CustomPromptController {
 
   @Operation(description = "Получение списка пользовательских запросов")
   @GetMapping("/list")
+  @PreAuthorize("hasAuthority('CUSTOM_PROMPT')")
   public RikserResponseItem<CustomPromptListResponseDto> getList(@ModelAttribute CustomPromptFilterDto filterDto) {
     return customPromptService.getUserPrompts(filterDto);
   }
 
   @PostMapping
   @Operation(description = "Сохранение пользовательского промпта")
+  @PreAuthorize("hasAuthority('CUSTOM_PROMPT')")
   public RikserResponseItem<CustomPromptResponseDto> save(
     @RequestBody
     @Parameter(description = "Параметры для сохранения промпта", required = true)
