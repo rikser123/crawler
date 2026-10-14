@@ -19,6 +19,7 @@ import rikser123.crawler.dto.customPrompt.CustomPromptFilterDto;
 import rikser123.crawler.dto.customPrompt.CustomPromptListResponseDto;
 import rikser123.crawler.dto.customPrompt.CustomPromptRequestDto;
 import rikser123.crawler.dto.customPrompt.CustomPromptResponseDto;
+import rikser123.crawler.dto.customPrompt.CustomPromptSuggestionResponseDto;
 import rikser123.crawler.service.CustomPromptService;
 
 @RestController
@@ -49,5 +50,15 @@ public class CustomPromptController {
     @Parameter(description = "Параметры для сохранения промпта", required = true)
     CustomPromptRequestDto requestDto) {
     return customPromptService.save(requestDto);
+  }
+
+  @PostMapping("/suggestion")
+  @Operation(description = "Получение анализа пользовательского промпта от ллм")
+  @PreAuthorize("hasAuthority('CUSTOM_PROMPT')")
+  public RikserResponseItem<CustomPromptSuggestionResponseDto> getSuggestion(
+    @RequestBody
+    @Parameter(description = "Параметры для анализа пользовательского промпта", required = true)
+    CustomPromptRequestDto requestDto) {
+    return customPromptService.getPromptSuggestion(requestDto);
   }
 }

@@ -7,6 +7,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.web.client.RestTemplate;
 import rikser123.bundle.service.RedisCacheService;
+import rikser123.bundle.service.UserDetailService;
 import rikser123.crawler.dto.userQuery.MessageUserQueryDto;
 import rikser123.crawler.dto.userQuery.UserQueryAnalysisDto;
 import rikser123.crawler.exception.BigSizeContentException;
@@ -72,6 +73,10 @@ public class UserQueryProcessorTest extends BaseConfig {
   @Autowired
   @MockitoSpyBean
   private SearchResponseMessageService searchResponseMessageService;
+
+  @Autowired
+  @MockitoBean
+  private UserDetailService userDetailService;
 
   private static final String TEXT_CONTENT = """
         <!DOCTYPE html>

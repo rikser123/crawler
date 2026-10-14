@@ -10,5 +10,5 @@ import java.util.UUID;
 
 @Repository
 public interface CustomPromptRepository extends JpaRepository<CustomPrompt, UUID> {
-  List<CustomPrompt> findAllByUserIdAndModeOrderByCreatedCreatedDesc(UUID userId, CustomPromptMode mode);
+  List<CustomPrompt> findAllByUserIdAndModeOrderByCreatedDesc(UUID userId, CustomPromptMode mode);
 }
