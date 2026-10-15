@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class QueryAnalyzer {
   private final ExecutorService executors = Executors.newVirtualThreadPerTaskExecutor();
+  private final CustomPromptService customPromptService;
 
   private final LlmService llmService;
   private ObjectMapper objectMapper = new ObjectMapper()
@@ -49,9 +50,14 @@ public class QueryAnalyzer {
       var userQuery = request.getQueryText();
       var searchMode = request.getSearchMode();
       var contents = request.getContents();
+      var customPrompt = customPromptService.findById(request.getCustomPromptId());
 
       if (searchMode == YandexSearchMode.SHORT) {
-        var analysis = llmService.getImmediateAnalysis(userQuery, contents.stream().map(SearchResponseDtoWithContent::getContent).toList());
+        var analysis = llmService.getImmediateAnalysis(
+          userQuery,
+          contents.stream().map(SearchResponseDtoWithContent::getContent).toList(),
+          customPrompt
+        );
         return createAnalysisDto(request, analysis);
       }
 
@@ -73,7 +79,7 @@ public class QueryAnalyzer {
       var sussesClusterAnalysis = clustersData.stream().filter(data -> !Objects.isNull(data)).toList();
       var synthesis = llmService.getClustersSynthesis(userQuery, sussesClusterAnalysis);
       var critics = llmService.getCritic(userQuery, synthesis);
-      var analysis = llmService.getAnalysis(userQuery, synthesis, critics, sussesClusterAnalysis);
+      var analysis = llmService.getAnalysis(userQuery, synthesis, critics, sussesClusterAnalysis, customPrompt);
 
       return createAnalysisDto(request, analysis);
 

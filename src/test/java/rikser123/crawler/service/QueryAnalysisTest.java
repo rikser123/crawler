@@ -25,9 +25,12 @@ public class QueryAnalysisTest {
   @Mock
   private LlmService llmService;
 
+  @Mock
+  private CustomPromptService customPromptService;
+
   @BeforeEach
   void init() {
-    queryAnalyzer = new QueryAnalyzer(llmService);
+    queryAnalyzer = new QueryAnalyzer(customPromptService, llmService);
   }
 
   @Test
@@ -37,7 +40,7 @@ public class QueryAnalysisTest {
     when(llmService.getAnalysisCluster(eq(dto.getQueryText()), any(String.class), any())).thenReturn("cluster");
     when(llmService.getClustersSynthesis(eq(dto.getQueryText()), eq(List.of("cluster", "cluster")))).thenReturn("synthesis");
     when(llmService.getCritic(eq(dto.getQueryText()), eq("synthesis"))).thenReturn("critics");
-    when(llmService.getAnalysis(eq(dto.getQueryText()), eq("synthesis"), eq("critics"), eq(List.of("cluster", "cluster")))).thenReturn("analysis");
+    when(llmService.getAnalysis(eq(dto.getQueryText()), eq("synthesis"), eq("critics"), eq(List.of("cluster", "cluster")), any())).thenReturn("analysis");
 
     var result = queryAnalyzer.makeAnalysis(dto);
     assertThat(result.getAnalysis()).isEqualTo("analysis");

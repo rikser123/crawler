@@ -51,9 +51,7 @@ public class CustomPromptService {
   }
 
   public CustomPromptResponseDto findById(UUID id) {
-    var prompt = customPromptRepository.findById(id).orElseThrow(() ->
-      new EntityNotFoundException("Не удалось найти промп с id " + id));
-    return customPromptMapper.mapToDto(prompt);
+    return customPromptRepository.findById(id).map(customPromptMapper::mapToDto).orElse(null);
   }
 
   public RikserResponseItem<CustomPromptListResponseDto> getUserPrompts(CustomPromptFilterDto filterDto) {

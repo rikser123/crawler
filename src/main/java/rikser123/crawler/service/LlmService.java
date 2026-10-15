@@ -1,15 +1,18 @@
 package rikser123.crawler.service;
 
 import feign.Request;
+import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import rikser123.crawler.dto.customPrompt.CustomPromptResponseDto;
 import rikser123.crawler.dto.llm.LlmRequestDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
 import rikser123.crawler.feign.LlmClient;
+import rikser123.crawler.repository.entity.CustomPrompt;
 import rikser123.crawler.repository.entity.CustomPromptMode;
 
 import java.time.Duration;
@@ -298,8 +301,14 @@ public class LlmService {
     return fetchModelRequest(llmRequest, llmOptions);
   }
 
-  public String getAnalysis(String userQuery, String synthesis, String critic, List<String> clusters) {
-      var prompt = String.format("""
+  public String getAnalysis(
+    String userQuery,
+    String synthesis,
+    String critic,
+    List<String> clusters,
+    @Nullable CustomPromptResponseDto customPrompt
+  ) {
+      var defaultPrompt = """
       Ты — старший аналитик. Ты пишешь отчёт для человека, который принимает
        решения и платит за анализ. Он не хочет читать пересказ источников —
        он хочет выводы, которым можно доверять, и увидеть то, что не видно
@@ -427,7 +436,14 @@ public class LlmService {
   
        === АНАЛИЗЫ КЛАСТЕРОВ ===
        %s
-    """, userQuery, synthesis, critic, clusters);
+    """;
+      var prompt = String.format(
+        Objects.isNull(customPrompt) ? defaultPrompt : customPrompt.getText(),
+        userQuery,
+        synthesis,
+        critic,
+        clusters
+      );
 
     log.info("getAnalysis: {}");
 
@@ -445,8 +461,8 @@ public class LlmService {
   }
 
 
-  public String getImmediateAnalysis(String userQuery, List<String> summaries) {
-    var prompt = String.format("""
+  public String getImmediateAnalysis(String userQuery, List<String> summaries, @Nullable CustomPromptResponseDto customPrompt) {
+    var defaultPrompt = """
      Ты — аналитик-исследователь. Задача: построить ответ, который читатель
      не смог бы получить, прочитав источники сам. Пересказ не считается.
    
@@ -569,7 +585,12 @@ public class LlmService {
    
      === ИСТОЧНИКИ ===
      %s
-    """, userQuery, summaries);
+    """;
+
+    var prompt = String.format(
+      Objects.isNull(customPrompt) ? defaultPrompt : customPrompt.getText(),
+      userQuery, summaries
+    );
 
     log.info("getImmediateAnalysis: {}");
 

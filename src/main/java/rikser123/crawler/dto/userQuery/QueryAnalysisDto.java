@@ -16,5 +16,6 @@ public class QueryAnalysisDto {
   private UUID searchQueryId;
   private String queryText;
   private YandexSearchMode searchMode;
+  private UUID customPromptId;
   private List<SearchResponseDtoWithContent> contents;
 }
