@@ -1,10 +1,8 @@
 package rikser123.crawler.service;
 
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import rikser123.bundle.dto.User;
 import rikser123.bundle.dto.response.RikserResponseItem;
 import rikser123.bundle.service.UserDetailService;
 import rikser123.bundle.utils.RikserResponseUtils;
@@ -55,7 +53,7 @@ public class CustomPromptService {
   }
 
   public RikserResponseItem<CustomPromptListResponseDto> getUserPrompts(CustomPromptFilterDto filterDto) {
-    var currentUser = (User) userDetailService.getCurrentUser();
+    var currentUser = userDetailService.getCurrentUser();
     var prompts = customPromptRepository.findAllByUserIdAndModeOrderByCreatedDesc(
       currentUser.getId(),
       filterDto.getMode()
