@@ -10,6 +10,7 @@ import rikser123.crawler.dto.customPrompt.CustomPromptFilterDto;
 import rikser123.crawler.dto.customPrompt.CustomPromptListResponseDto;
 import rikser123.crawler.dto.customPrompt.CustomPromptRequestDto;
 import rikser123.crawler.dto.customPrompt.CustomPromptResponseDto;
+import rikser123.crawler.dto.customPrompt.CustomPromptSuggestionRequestDto;
 import rikser123.crawler.dto.customPrompt.CustomPromptSuggestionResponseDto;
 import rikser123.crawler.mapper.CustomPromptMapper;
 import rikser123.crawler.repository.CustomPromptRepository;
@@ -30,18 +31,22 @@ public class CustomPromptService {
   private final CustomPromptMapper customPromptMapper;
   private final LlmService llmService;
 
-  public RikserResponseItem<CustomPromptSuggestionResponseDto> getPromptSuggestion(CustomPromptRequestDto requestDto) {
-    validatePrompt(requestDto);
-    var suggestionPrompt = llmService.getSuggestionPrompt(requestDto.getText(), requestDto.getMode());
+  public RikserResponseItem<CustomPromptSuggestionResponseDto> getPromptSuggestion(
+    CustomPromptSuggestionRequestDto requestDto
+  ) {
+    validatePrompt(requestDto.getPrompt(), requestDto.getMode());
+    var suggestionPrompt = llmService.getSuggestionPrompt(requestDto.getPrompt(), requestDto.getMode());
 
     var response = new CustomPromptSuggestionResponseDto();
     response.setPrompt(suggestionPrompt);
     return RikserResponseUtils.createResponse(response);
   }
 
-  public RikserResponseItem<CustomPromptResponseDto> save(CustomPromptRequestDto requestDto) {
-    validatePrompt(requestDto);
+  public RikserResponseItem<CustomPromptResponseDto> saveFromRequest(CustomPromptRequestDto requestDto) {
+    validatePrompt(requestDto.getText(), requestDto.getMode());
     var entity = customPromptMapper.mapToEntity(requestDto);
+    var currentUser = userDetailService.getCurrentUser();
+    entity.setUserId(currentUser.getId());
     var saved = customPromptRepository.save(entity);
     var response = customPromptMapper.mapToDto(saved);
 
@@ -67,9 +72,7 @@ public class CustomPromptService {
     return RikserResponseUtils.createResponse(response);
   }
 
-  private void validatePrompt(CustomPromptRequestDto requestDto) {
-    var mode = requestDto.getMode();
-    var text = requestDto.getText();
+  private void validatePrompt(String text, CustomPromptMode mode) {
     var placeholderCount = countPlaceholderLength(text);
 
     if ((mode == CustomPromptMode.SHORT && placeholderCount != SHORT_MODE_PLACEHOLDER_COUNT)

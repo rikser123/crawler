@@ -12,7 +12,6 @@ import rikser123.crawler.dto.customPrompt.CustomPromptResponseDto;
 import rikser123.crawler.dto.llm.LlmRequestDto;
 import rikser123.crawler.dto.queryResponse.SearchResponseDtoWithContent;
 import rikser123.crawler.feign.LlmClient;
-import rikser123.crawler.repository.entity.CustomPrompt;
 import rikser123.crawler.repository.entity.CustomPromptMode;
 
 import java.time.Duration;

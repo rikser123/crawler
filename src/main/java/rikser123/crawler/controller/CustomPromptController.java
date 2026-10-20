@@ -14,11 +14,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import rikser123.bundle.dto.request.RikserRequestItem;
 import rikser123.bundle.dto.response.RikserResponseItem;
 import rikser123.crawler.dto.customPrompt.CustomPromptFilterDto;
 import rikser123.crawler.dto.customPrompt.CustomPromptListResponseDto;
 import rikser123.crawler.dto.customPrompt.CustomPromptRequestDto;
 import rikser123.crawler.dto.customPrompt.CustomPromptResponseDto;
+import rikser123.crawler.dto.customPrompt.CustomPromptSuggestionRequestDto;
 import rikser123.crawler.dto.customPrompt.CustomPromptSuggestionResponseDto;
 import rikser123.crawler.service.CustomPromptService;
 
@@ -48,8 +50,8 @@ public class CustomPromptController {
   public RikserResponseItem<CustomPromptResponseDto> save(
     @RequestBody
     @Parameter(description = "Параметры для сохранения промпта", required = true)
-    CustomPromptRequestDto requestDto) {
-    return customPromptService.save(requestDto);
+    RikserRequestItem<CustomPromptRequestDto> requestDto) {
+    return customPromptService.saveFromRequest(requestDto.getData());
   }
 
   @PostMapping("/suggestion")
@@ -58,7 +60,7 @@ public class CustomPromptController {
   public RikserResponseItem<CustomPromptSuggestionResponseDto> getSuggestion(
     @RequestBody
     @Parameter(description = "Параметры для анализа пользовательского промпта", required = true)
-    CustomPromptRequestDto requestDto) {
-    return customPromptService.getPromptSuggestion(requestDto);
+    RikserRequestItem<CustomPromptSuggestionRequestDto> requestDto) {
+    return customPromptService.getPromptSuggestion(requestDto.getData());
   }
 }
